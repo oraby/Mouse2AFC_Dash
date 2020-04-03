@@ -13,7 +13,9 @@ import traceback
 import matplotlib.pyplot as plt
 import analysis
 import mat_reader
+import pandas as pd
 
+analysis.Plotter.setPlotType(is_mpl=True)
 
 class PlotHandler():
   def __init__(self):
@@ -128,12 +130,16 @@ class MakeAndSavePlots():
                                     width_ratios=[1,2])
 
     animal_name = session_df.Name.unique()[0]
-    psych_axes = analysis.psychAxes(animal_name, axes=axs[0][0])
-    analysis.psychAnimalSessions(session_df, animal_name, psych_axes,
+    
+    psych_plotter = analysis.Plotter(graph_obj=axs[0][0])
+    analysis.psychAxes(animal_name, psych_plotter)
+    analysis.psychAnimalSessions(session_df, animal_name, psych_plotter,
                                  analysis.METHOD)
 
+    perf_plotter1 = analysis.Plotter(graph_obj=axs[0][1])
     Plot = analysis.PerfPlots
-    analysis.performanceOverTime(session_df, single_session=True, axes=axs[0][1],
+    analysis.performanceOverTime(session_df, single_session=True, 
+                                 plotter=perf_plotter1,
                                  draw_plots=[Plot.Performance,
                                              Plot.DifficultiesCount,
                                              Plot.Bias,
@@ -141,13 +147,18 @@ class MakeAndSavePlots():
                                              Plot.MovementT,
                                              Plot.ReactionT,
                                              Plot.StimAPO])
-    analysis.performanceOverTime(session_df, single_session=True, axes=axs[1][1],
+  
+    perf_plotter2 = analysis.Plotter(graph_obj=axs[1][1])
+    analysis.performanceOverTime(session_df, single_session=True, 
+                                 plotter=perf_plotter2,
                                  draw_plots=[Plot.Performance,
                                              Plot.Difficulties,
                                              Plot.SamplingT,
                                              Plot.CatchWT,
                                              Plot.MaxFeedbackDelay])
-    analysis.trialRate(session_df, axs[1][0])
+    trial_plotter = analysis.Plotter(graph_obj=axs[1][0])
+    analysis.trialRate(session_df, trial_plotter)
+    
     return fig
 
   def _confidencePlot(self, session_df):
@@ -182,16 +193,17 @@ class MakeAndSavePlots():
     return fig, axs
 
 def showAndSaveReport():
-  data_flie = sys.argv[1]
+  data_file = sys.argv[1]
   save_dir = sys.argv[2]
-  print("Data file:", data_flie)
+  print("Data file:", data_file)
   print("Save dir:", save_dir)
   temp_path = r"C:\Users\hatem\OneDrive\Documents\py_matlab\\"+ \
               r"wfThy2_Mouse2AFC_Dec05_2019_Session1.mat"
               #r"vgat4_Mouse2AFC_Dec09_2019_Session2.mat"
               #r"RDK_WT1_Mouse2AFC_Dec04_2019_Session1.mat"
 
-  session_df = mat_reader.loadFiles(data_flie)
+  session_df = mat_reader.loadFiles(data_file)
+  #session_df = pd.read_pickle(data_file)
   print("Session df length:", len(session_df))
   MakeAndSavePlots().run(session_df, save_dir)
 

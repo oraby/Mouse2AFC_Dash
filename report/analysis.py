@@ -14,7 +14,550 @@ import numpy as np
 from scipy.optimize import curve_fit
 import pandas as pd
 from enum import Enum, auto, unique
+import plotly.graph_objects as go
 
+class Plotter:
+  #COMMON_ARGS = {"label":None, "xtitle":None}
+  #SCATTER_ARGS = {"point_size":30}
+  #SCATTER_ARGS.update(COMMON_ARGS)
+  MPL_KWARGS = ['linestyle', 'marker', 'markeredgecolor', 'markerfacecolor',
+                'markersize', 'label', 'linewidth', 'color', 'width', 'align',
+                'zorder', 'edgecolor', 'handles', 'labels', 'loc', 
+                'bbox_to_anchor', 'ncol', 'fancybox', 'prop', 'alpha', 
+                'edgecolors', 's', 'where', 'c']
+  PLOTLY_KWARGS = ['showlegend']  
+  
+  # These are default style settings to make the plotly figs look like mpl figs
+  PLOTLY_LAYOUT = dict(plot_bgcolor='white',
+                       xaxis=dict(showline=True,
+                                  linewidth=1,
+                                  linecolor='black',
+                                  mirror=True,
+                                  ticks='outside'),
+                      yaxis=dict(showline=True,
+                                  linewidth=1,
+                                  linecolor='black',
+                                  mirror=True,
+                                  ticks='outside')) 
+
+  #_IS_MPL = False
+
+  @staticmethod # Function of the class, not of the instance of a class. 
+  def setPlotType(is_mpl):
+    Plotter._IS_MPL = is_mpl
+                       
+  def __init__(self, graph_obj=None, second_y=False): # is_matplotlib = boolean variable      
+   if Plotter._IS_MPL:
+      self.axes = graph_obj if graph_obj is not None else plt.axes()
+      self._second_y_axis = False
+      self._handles1 = []
+      self._labels1 = []
+      self._handles2 = []
+      self._labels2 = []
+      self._handles3 = []
+      self._labels3 = []
+      
+   else:
+      self.graphly = graph_obj if graph_obj is not None else go.Figure()
+      self.graphly.update_layout(Plotter.PLOTLY_LAYOUT)
+      self._second_y_axis = second_y
+
+      
+      if second_y:
+        self.graphly.update_yaxes(ticks='outside')   
+      
+      self._traceid_legend1 = 0
+      self._id_to_name1 = {}
+      self._traceid_legend2 = 0
+      self._id_to_name2 = {}
+     
+      
+  def addTrace(self, tracetype, x, y, second_y=None, **kwargs):    
+    tracetypes = ['bar', 'scatter', 'line', 'step']
+    if tracetype not in tracetypes:
+      return
+    
+    mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
+       
+    if Plotter._IS_MPL:
+      conv_kwargs = self._convertKWArgs(tracetype, **plotly_kwargs)
+      mpl_kwargs.update(conv_kwargs)
+      
+      if second_y:
+        axis = self.axes2
+      else: 
+        axis = self.axes
+      
+      if tracetype == 'scatter':
+        axis.scatter(x, y, **mpl_kwargs)
+        
+      elif tracetype == 'line':
+        axis.plot(x, y, **mpl_kwargs)
+      
+      elif tracetype == 'bar':
+        axis.bar(x, y, **mpl_kwargs) 
+      
+      elif tracetype == 'step':
+        axis.step(x, y, **mpl_kwargs)
+           
+    else:      
+      conv_kwargs = self._convertKWArgs(tracetype, **mpl_kwargs)
+      plotly_kwargs.update(conv_kwargs)
+      
+      if ('showlegend', False) not in plotly_kwargs.items():
+        if second_y:
+          self._id_to_name2[self._traceid_legend2] = plotly_kwargs['name']
+          self._traceid_legend2 += 1
+        else:
+          self._id_to_name1[self._traceid_legend1] = plotly_kwargs['name']
+          self._traceid_legend1 += 1  
+          
+          
+      if tracetype == 'scatter':
+        self.graphly.add_trace(go.Scatter(x=x, y=y, mode='markers', **plotly_kwargs),
+                               secondary_y=second_y)
+        
+      elif tracetype == 'line':
+        self.graphly.add_trace(go.Scatter(x=x, y=y, mode='lines', **plotly_kwargs),
+                               secondary_y=second_y)
+        
+      elif tracetype == 'bar':
+        if 'align' in mpl_kwargs:
+          half_bin = round((x[-1] - x[-2])*0.5, 1)
+          x = x+half_bin # works only if x is numpy array        
+        self.graphly.add_trace(go.Bar(x=x, y=y, **plotly_kwargs),
+                               secondary_y=second_y)
+      
+      elif tracetype == 'step':
+        self.graphly.add_trace(go.Scatter(x=x, y=y, mode='lines', line_shape='hv', 
+                                          **plotly_kwargs),
+                               secondary_y=second_y)
+
+
+  def fillBetween(self, x, y1, y2, color=None, alpha=None, second_y=None):    
+    if Plotter._IS_MPL:
+      if second_y:
+        axis = self.axes2
+      else: 
+        axis = self.axes
+      
+      axis.fill_between(x, y1, y2, color=color, alpha=alpha)
+    
+    else:
+      col = mpl.colors.to_rgba(color)
+      fillcolor = 'rgba({}, {}, {}, {})'.format(col[0], col[1], col[2], alpha)
+      # Draw 100% transparent line (upper border) as guide
+      self.graphly.add_trace(go.Scatter(x=x, y=y1, line_color='rgba(0,0,0,0)',
+                                        showlegend=False),
+                             secondary_y=second_y)
+      # Fill from lower border to upper (tonexty means from this to previously drawn line)
+      self.graphly.add_trace(go.Scatter(x=x, y=y2, mode='none', fill='tonexty',
+                                        fillcolor=fillcolor, showlegend=False),
+                             secondary_y=second_y)
+      
+  def legend(self, **kwargs):
+    '''
+    No need for handles, labels
+    '''
+    mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
+    
+    if Plotter._IS_MPL:
+      conv_kwargs = self._convertKWArgs('legend', **plotly_kwargs)
+      mpl_kwargs.update(conv_kwargs)
+      
+      if not len(self._handles1):
+        self._handles1, self._labels1 = self.axes.get_legend_handles_labels()
+      
+      if self._second_y_axis:
+        if not len(self._handles2):
+          self._handles2, self._labels2 = self.axes2.get_legend_handles_labels()
+     
+      self.axes.legend(handles=self._handles1 + self._handles2 + self._handles3,
+                       labels=self._labels1 + self._labels2 + self._labels3,
+                       **mpl_kwargs)
+    
+    else:
+      conv_kwargs = self._convertKWArgs('legend', **mpl_kwargs)      
+      if 'new_x' in conv_kwargs:
+        x = conv_kwargs.pop('new_x')
+        y = conv_kwargs.pop('new_y')
+        conv_kwargs['legend_x'] = x
+        conv_kwargs['legend_y'] = y
+                
+      plotly_kwargs.update(conv_kwargs)
+      self.graphly.update_layout(legend_traceorder='normal', **plotly_kwargs)
+      
+      
+  def updateLegendText(self, new_text, legend_item, second_y=None, append=False):
+    '''
+    Should be done after all plotting is done.
+    legend_item is position number, separate for axes!
+    Added legend items should not be updated.
+    '''
+    if Plotter._IS_MPL:
+      if second_y:
+        if not len(self._handles2):
+          self._handles2, self._labels2 = self.axes2.get_legend_handles_labels()
+        
+        if append:
+          self._labels2[legend_item] = self._labels2[legend_item] + new_text
+        else:
+          self._labels2[legend_item] = new_text 
+        
+      else:
+        if not len(self._handles1):
+          self._handles1, self._labels1 = self.axes.get_legend_handles_labels()
+          self._handles_labels1 = True
+          
+        if append:
+          self._labels1[legend_item] = self._labels1[legend_item] + new_text
+        else:
+          self._labels1[legend_item] = new_text 
+        
+    else:
+      if second_y:
+        trace_name = self._id_to_name2[legend_item]
+      else:
+        trace_name = self._id_to_name1[legend_item]
+     
+      if append:
+        new_name = trace_name + new_text
+      else:
+        new_name = new_text
+      
+      self.graphly.update_traces(name = new_name,
+                                 selector = dict(name=trace_name))
+    
+  def addLegendItem(self, **kwargs):
+    '''
+    Items will be added at the very end of the legend
+    Function should be called after all plotting is done
+    '''    
+    if Plotter._IS_MPL:
+      line = Line2D([], [], **kwargs)
+      self._handles3.append(line)
+      self._labels3.append(line.get_label())
+          
+    else:
+      self.addTrace('scatter', x=[0], y=[-5], second_y=True, **kwargs)
+        
+  def _handleKWArgs(self, **kwargs):
+    mpl_kwargs = {}
+    plotly_kwargs = {}
+    
+    for key, val in kwargs.items():
+      if key in Plotter.MPL_KWARGS:
+        mpl_kwargs[key] = val
+      elif key in Plotter.PLOTLY_KWARGS:
+        plotly_kwargs[key] = val
+      else:
+        print('Kwarg "{}" not yet implemented for Plotter.addLine().'.format(
+            key))      
+    return mpl_kwargs, plotly_kwargs
+    
+  def _convertKWArgs(self, objecttype, **kwargs):
+    conv_kwargs = {}
+    for key, val in kwargs.items():
+      cap = key.capitalize()
+      fn = getattr(self, "_convert" + cap) #Functions are attributes of the object plotter (class)
+      conv_item = fn(val, objecttype)
+      if conv_item is not None:
+        conv_kwargs.update(conv_item)
+    
+    return conv_kwargs
+  
+  def _convertAlign(self, alignment, objecttype): # objecttype = Bar
+    # only passed if align=edge, default is align=center
+    return None
+  
+  def _convertAlpha(self, alpha_val, objecttype): # objecttype = Line
+    return {'opacity': alpha_val}
+    
+  
+  def _convertBbox_to_anchor(self, twople, objecttype): # objecttype = Legend
+    if len(twople) != 2:
+      print('_convertBbox_to_anchor only accepts 2-tuples.')
+      twople = twople[:2]
+    
+    plotly = dict(new_x=twople[0], new_y=twople[1])
+    return plotly    
+  
+  def _convertC(self, color, objecttype):
+    return self._convertColor(color, objecttype)
+  
+  def _convertColor(self, color, objecttype): # objecttype = Bar, Line
+    if type(color) is tuple:
+      RGB = []
+      for i in color[:3]:
+        RGB.append(i*256)
+      color = 'rgba({}, {}, {}, {})'.format(RGB[0], RGB[1], RGB[2], color[3])
+    
+    if objecttype in ['line', 'step']:
+      plotly_key = 'line_color'
+    elif objecttype in ['bar', 'scatter']:
+      plotly_key = 'marker_color'
+      
+    return {plotly_key: color}
+  
+  def _convertEdgecolor(self, color, objecttype): # objecttype = Bar
+    plotly_key = 'marker_line_color' 
+    return {plotly_key: color}
+  
+  def _convertEdgecolors(self, color, objecttype): # objecttype = Scatter
+    return {'marker_line_color': color, 'marker_line_width': 2}
+  
+  def _convertFancybox(self, boolean, objecttype): # objecttype = Legend
+    # MPL: border is drawn around legend by default. 
+    # Fancybox = True enables round edges of box.
+    # In plotly, box would have to be enabled with legend_borderwidth, legend_color.
+    # Round edges are not possible.
+    return None
+  
+  def _convertHandles(self, handles, objecttype): # objecttype = Legend
+    return None
+  
+  def _convertLabel(self, trace_name, objecttype): # objecttype = Bar, Line
+    plotly_key = 'name' 
+    return {plotly_key: trace_name}
+  
+  def _convertLabels(self, labels, objecttype): # objecttype = Legend
+    return None
+  
+  def _convertLinewidth(self, float_number, objecttype): # objecttype = Line
+    plotly_key = 'line_width' 
+    return {plotly_key: float_number}
+          
+  def _convertLinestyle(self, style, objecttype): # objecttype = Line
+    if style not in ['None', '', ' ']:
+      plotly_key = 'line_dash' 
+      vals = {'-': 'solid',
+              '--': 'dash',
+              '-.': 'dashdot',
+              ':': 'dot',
+              'solid': 'solid', 
+              'dashed': 'dash', 
+              'dashdot': 'dashdot', 
+              'dotted': 'dot'}
+      plotly_val = vals[style]
+      return {plotly_key: plotly_val}
+    
+    else:
+      return None
+  
+  def _convertLoc(self, loc, objecttype): # objecttype = Legend
+    '''
+    loc defines 
+    a) without bbox_to_anchor: both position in plot AND corner/edge of legend
+    b) with bbox_to_anchor 2-tuple: corner/edge of legend. x/y position in plot 
+       defined by bbox
+    c) with bbox_to_anchor 4-tuple: corner/edge of legend AND position in box 
+       defined by bbox (x, y, width, height)(box originates with lower left corner
+       in x/y position)
+    '''
+    conv_dict = {'best': [1, 1,'auto', 'auto'], # put it in upper right corner
+                 'upper right': [1, 1, 'right', 'top'],
+                 'upper left': [0, 1, 'left', 'top'],
+                 'lower left': [0, 0, 'left', 'bottom'],
+                 'lower right': [1, 0, 'right', 'bottom'],
+                 'right': [1, 0.5, 'right', 'middle'],
+                 'center left': [0, 0.5, 'left', 'middle'],
+                 'center right': [1, 0.5, 'right', 'middle'],
+                 'lower center': [0.5, 0, 'center', 'bottom'],
+                 'upper center': [0.5, 1, 'center', 'top'],
+                 'center': [0.5, 0.5, 'center', 'middle']}
+    
+    vals = conv_dict[loc]
+    plotly = dict(legend_x=vals[0], legend_y=vals[1], 
+                  legend_xanchor=vals[2], legend_yanchor=vals[3])
+    
+    
+    return plotly
+    
+  def _convertMarker(self, style, objecttype): # objecttype = Line
+    if style is None:
+      return None
+    
+    plotly_key = 'marker_symbol'
+    vals = {'o':'circle', '+':'cross-thin'}
+    plotly_val = vals.get(style, 'circle') # if style in vals, return value, if not, return 'circle' as default
+    
+    return {plotly_key: plotly_val}
+    
+  def _convertMarkerfacecolor(self, color, objecttype): # objecttype = Line
+    return {'marker_color': color}
+    
+  def _convertMarkeredgecolor(self, color, objecttype): # objecttype = Line
+    return {'marker_line_color': color, 'marker_line_width': 2}
+
+  def _convertMarkersize(self, float_number, objecttype): # objecttype = Line
+    plotly_key = 'marker_size'
+    return {plotly_key: float_number}
+  
+  def _convertNcol(self, number, objecttype):
+    # multiple legend columns not possible in plotly
+    # change legend_orientation to h (horizontal?)
+    return {'legend_orientation' : 'h'}
+  
+  def _convertProp(self, dict, objecttype): # objecttype = Legend
+    # Controls font settings. Size is relative.
+   # if dict['size']:
+    #  pass    
+    return None  
+  
+  def _convertS(self, size, objecttype): # objecttype = Scatter
+    plotly_key = 'marker_size'
+    return {plotly_key: size}
+  
+  def _convertWhere(self, where, objecttype): # objecttype = Step
+    return None
+  
+  def _convertWidth(self, float_number, objecttype): # objecttype = Line
+    plotly_key = 'width'
+    return {plotly_key: float_number}
+
+  def _convertShowlegend(self, boolean, objecttype): # objecttype = Line, Bar
+    return None
+  
+  def _convertZorder(self, zorderval, objecttype): # objecttype = Line, Bar
+    return None
+     
+  def setGraphTitle(self, title):
+    if Plotter._IS_MPL:
+      self.axes.set_title(title)
+    else:
+      self.graphly.update_layout(title=dict(text=title,
+                                            xref='paper',
+                                            x=0.5,
+                                            xanchor='center'))   
+  
+  def setXLim(self, xmin=None, xmax=None):
+    if Plotter._IS_MPL:
+      self.axes.set_xlim(left=xmin, right=xmax)
+    else:
+      if xmin == 0 and xmax is None:
+        self.graphly.update_xaxes(rangemode = 'tozero')
+      else:
+        self.graphly.update_xaxes(range=[xmin, xmax])      
+
+  def setYLim(self, ymin=None, ymax=None, second_y=None):
+    if Plotter._IS_MPL:
+      if second_y:
+        axis = self.axes2
+      else: 
+        axis = self.axes
+      axis.set_ylim(bottom=ymin, top=ymax)
+      
+    else:
+      if ymin == 0 and ymax is None:
+        self.graphly.update_yaxes(rangemode='tozero', secondary_y=second_y)
+      else:
+        self.graphly.update_yaxes(range=[ymin, ymax], secondary_y=second_y)  
+      
+  def setXLabel(self, x_label):
+    if Plotter._IS_MPL:
+      self.axes.set_xlabel(x_label)
+    else:
+      self.graphly.update_xaxes(title_text=x_label)
+      
+  def setYLabel(self, y_label, second_y=None):
+    if Plotter._IS_MPL:
+      if second_y:
+        axis = self.axes2
+      else: 
+        axis = self.axes
+      axis.set_ylabel(y_label)
+    else:
+      self.graphly.update_yaxes(title_text=y_label, secondary_y=second_y)
+      
+  def setXTickValues(self, tickvalues):
+    if Plotter._IS_MPL:
+      self.axes.set_xticks(tickvalues)
+    else:
+      self.graphly.update_xaxes(tickmode='array', tickvals=tickvalues)
+  
+  def setXTickLabels(self, ticklabels):
+    if Plotter._IS_MPL:
+      self.axes.set_xticklabels(ticklabels)
+    else:
+      self.graphly.update_xaxes(ticktext=ticklabels)
+        
+  def setYTickSuffix(self, ticksuffix, second_y=None):
+    if Plotter._IS_MPL:
+      if second_y:
+        axis = self.axes2
+      else: 
+        axis = self.axes
+        
+      axis.yaxis.set_major_formatter(
+                         FuncFormatter(lambda y, _: ('{}'+ticksuffix).format(int(y))))
+    else:
+      self.graphly.update_yaxes(ticksuffix=ticksuffix, secondary_y=second_y)  
+  
+  def setYTickLabelcolor(self, labelcolor, second_y=None):
+    if Plotter._IS_MPL:
+      if second_y:
+        axis = self.axes2
+      else: 
+        axis = self.axes
+      axis.tick_params(axis='y', color=labelcolor)
+    else:
+      self.graphly.update_yaxes(tickcolor=labelcolor, secondary_y=second_y)
+  
+  def createVLine(self, x, **kwargs):
+    mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
+       
+    if Plotter._IS_MPL:
+      conv_kwargs = self._convertKWArgs('line', **plotly_kwargs)
+      mpl_kwargs.update(conv_kwargs)
+
+      self.axes.axvline(x=x, **mpl_kwargs)
+    
+    else:
+      conv_kwargs = self._convertKWArgs('line', **mpl_kwargs)
+      plotly_kwargs.update(conv_kwargs)
+      
+      self.graphly.add_shape(type='line', layer='below',
+                             yref='paper', y0=0, y1=1,
+                             xref='x', x0=x, x1=x,
+                             **plotly_kwargs)
+      '''
+      self.graphly.add_shape(dict(type='line',
+                                  line=dict(color=color,
+                                            width=1.5*SCALE_X,
+                                            dash='dash'),
+                                  layer='below',
+                                  yref='paper', y0=0, y1=1,
+                                  xref='x', x0=x_position, x1=x_position))
+      '''
+  
+  def createHLine(self, y, **kwargs):
+    mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
+       
+    if Plotter._IS_MPL:
+      conv_kwargs = self._convertKWArgs('line', **plotly_kwargs)
+      mpl_kwargs.update(conv_kwargs)
+
+      self.axes.axhline(y=y, **mpl_kwargs)    
+    
+    else:
+      conv_kwargs = self._convertKWArgs('line', **mpl_kwargs)
+      plotly_kwargs.update(conv_kwargs)
+      
+      if self._second_y_axis is False:
+        x1=1
+      else:
+        x1=0.94
+      
+      self.graphly.add_shape(type='line', layer='below',
+                             xref='paper', x0=0, x1=x1,
+                             yref='y', y0=y, y1=y,
+                             **plotly_kwargs)
+                                  
+  def secondYAxis(self):
+    if Plotter._IS_MPL:
+      self.axes2 = self.axes.twinx()
+      self._second_y_axis = True
+  
 class ExpType(): # Don't create as enum as we will compare with real integers
   LightIntensity = 2
   RDK = 4
@@ -38,39 +581,39 @@ FORMATS = None
 DPI = None
 
 def setMatplotlibParams(silent=False):
-    global SCALE_X, SCALE_Y, SAVE_FIG_SIZE, FORMATS, DPI
+  global SCALE_X, SCALE_Y, SAVE_FIG_SIZE, FORMATS, DPI
 
-    rc_params = ['figure.figsize','font.size','lines.linewidth',
-                 'lines.dashed_pattern','lines.dashdot_pattern',
-                 'lines.dotted_pattern']
-    if "original_rc" not in locals():
-      original_rc = {}
-    for attr_name in rc_params:
-      if attr_name not in original_rc:
-        original_rc[attr_name] = mpl.rcParams[attr_name]
+  rc_params = ['figure.figsize','font.size','lines.linewidth',
+               'lines.dashed_pattern','lines.dashdot_pattern',
+               'lines.dotted_pattern']
+  if "original_rc" not in locals():
+    original_rc = {}
+  for attr_name in rc_params:
+    if attr_name not in original_rc:
+      original_rc[attr_name] = mpl.rcParams[attr_name]
 
-    SAVE_FIG_SIZE = (6.4, 4.8) # original mpl.rcParams['figure.figsize'] is [6.4, 4.8]
-    SCALE_X = SAVE_FIG_SIZE[0]/(original_rc['figure.figsize'][0])
-    SCALE_Y = SAVE_FIG_SIZE[1]/(original_rc['figure.figsize'][1])
-    for attr_name, attr_val in original_rc.items():
-      if not hasattr(attr_val, "__len__"):
-        new_attr_val = attr_val*SCALE_X
-      elif len(attr_val) == 2 or len(attr_val) == 4:
-        new_attr_val = (attr_val[0]*SCALE_X, attr_val[1]*SCALE_Y)
-        if len(attr_val) == 4:
-          new_attr_val = new_attr_val + (attr_val[2]*SCALE_X,
-                                         attr_val[3]*SCALE_Y,)
-      else:
-        new_attr_val = list(map(lambda el:el*SCALE_X, attr_val))
-      if not silent:
-        print("Updating rcParam[{}] from {} to {}".format(attr_name, attr_val,
-                                                          new_attr_val))
-      mpl.rcParams[attr_name] = new_attr_val
+  SAVE_FIG_SIZE = (6.4, 4.8) # original mpl.rcParams['figure.figsize'] is [6.4, 4.8]
+  SCALE_X = SAVE_FIG_SIZE[0]/(original_rc['figure.figsize'][0])
+  SCALE_Y = SAVE_FIG_SIZE[1]/(original_rc['figure.figsize'][1])
+  for attr_name, attr_val in original_rc.items():
+    if not hasattr(attr_val, "__len__"):
+      new_attr_val = attr_val*SCALE_X
+    elif len(attr_val) == 2 or len(attr_val) == 4:
+      new_attr_val = (attr_val[0]*SCALE_X, attr_val[1]*SCALE_Y)
+      if len(attr_val) == 4:
+        new_attr_val = new_attr_val + (attr_val[2]*SCALE_X,
+                                       attr_val[3]*SCALE_Y,)
+    else:
+      new_attr_val = list(map(lambda el:el*SCALE_X, attr_val))
+    if not silent:
+      print("Updating rcParam[{}] from {} to {}".format(attr_name, attr_val,
+                                                        new_attr_val))
+    mpl.rcParams[attr_name] = new_attr_val
 
-    DPI = 600
-    FORMATS = [".png"]#,".tiff",".pdf",".svg"]
-    mpl.rcParams['pdf.fonttype'] = 42
-    mpl.rcParams['ps.fonttype'] = 42
+  DPI = 600
+  FORMATS = [".png"]#,".tiff",".pdf",".svg"]
+  mpl.rcParams['pdf.fonttype'] = 42
+  mpl.rcParams['ps.fonttype'] = 42
 
 
 def savePlot(title, confd=False, legend=None, animal_name=None):
@@ -122,7 +665,7 @@ MIN_NUM_SESSION_TRIALS=50
 SINGLE_SESSION_BIN_SIZE=20
 
 def performanceOverTime(df, head_fixation_date=None, single_session=None,
-                        draw_plots=list(PerfPlots), axes=None, axes_legend=True,
+                        draw_plots=list(PerfPlots), plotter=None, axes_legend=True,
                         reverse_alphas=False):
   animal_name = df.Name.unique()
   assert len(animal_name) == 1 # Assure that we only have one mouse
@@ -136,14 +679,13 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
   title += animal_name
   if single_session:
     title += df.Date.unique()[0].strftime(" - %Y-%m-%d")
-  if not axes:
-    axes = plt.axes()
-  axes.set_xlabel(xlabel="Trial Num" if single_session else "Session Num")
-  axes.set_ylim(0, 105)
-  axes.yaxis.set_major_formatter(
-                         FuncFormatter(lambda y, _: '{}%'.format(int(y))))
-  axes.set_ylabel("Rate (%)")
-  axes.set_title(title)
+  #if not axes:
+    #axes = plt.axes()
+  plotter.setXLabel(x_label="Trial Num" if single_session else "Session Num")
+  plotter.setYLim(0, 105, second_y=False)
+  plotter.setYTickSuffix('%', second_y=False)
+  plotter.setYLabel("Rate (%)", second_y=False)
+  plotter.setGraphTitle(title)
 
   df = df.sort_values(["Date","SessionNum","TrialNumber"])
   if single_session:
@@ -178,7 +720,7 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
   used_feedback_delay = []
   head_fixation_session=None
   num_sessions = 0
-  for date_sessionnum, block in sessions:
+  for date_sessionnum, block in sessions: # sessions = 1 session, block = set of trials within one session
     if single_session:
       #print("date_sessionnum:",date_sessionnum, "Block:", block.TrialNumber)
       bin_idx = date_sessionnum
@@ -258,43 +800,52 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
 
   x_data=np.array(x_data,dtype=np.int)
   #TODO: Do session all performance
-  axes.set_xlim(x_data[0],x_data[-1])
+  plotter.setXLim(x_data[0],x_data[-1])
   plots=[PerfPlots.Performance, PerfPlots.EarlyWD, PerfPlots.Bias] + \
         [PerfPlots.Difficulties]*MAX_COUNT_DIFFICULTY
   from colour import Color as ColorLib
   green=ColorLib("green")
-  color=['k','b','c'] + \
+  color=['black','blue','cyan'] + \
         list(map(lambda c: c.hex,
              green.range_to(ColorLib("orange"),MAX_COUNT_DIFFICULTY)))
   label=["Performance Rate","Early-Withdrawal Rate","Left Bias Rate"] + \
         ["Difficulty {}".format(i+1) for i in range(MAX_COUNT_DIFFICULTY)]
   alpha=[1.0,1.0,0.6] + [0.8]*MAX_COUNT_DIFFICULTY
   # Multiply rates by 100 to convert to percentages
+  # These are y-values
   metrics=[np.array(metric)*100 for metric in [performance, EWD, left_bias]] + \
           difficulties
   for i, metric in enumerate(metrics):
     if plots[i] not in draw_plots or np.nansum(metric) == 0:
       continue
     #print("Label:", label[i], "x_data:", len(x_data), "- metric:", len(metric))
-    axes.plot(x_data,metric,color=color[i],label=label[i],alpha=alpha[i])
+    plotter.addTrace('line', x_data, metric, color=color[i], label=label[i],
+                     alpha=alpha[i], second_y=False)
 
   if PerfPlots.DifficultiesCount in draw_plots:
     color_map=plt.cm.get_cmap('gist_gray')
     def colorMapIdx(num_difficulties): # Map 1-->3 to 0-->1.0
       #return 3 if num_difficulties == 3 else 1 - ((num_difficulties-1)/3)
       return 0 if num_difficulties == 1 else num_difficulties/3
-
+    
+    # TODO: find good scale for both
+    if Plotter._IS_MPL:
+      s=max(20*SCALE_X, min(50*SCALE_X, SCALE_X*7500/num_sessions))
+    else:
+      s=8
+      
     for i in range(len(x_data)):
-      axes.scatter(x_data[i], performance[i]*100,
-                   color=color_map(colorMapIdx(num_difficulties[i])),
-                   edgecolors='k', marker='o',zorder=10,
-                   s=max(20*SCALE_X, min(50*SCALE_X, SCALE_X*7500/num_sessions)))
-
+      plotter.addTrace('scatter', [x_data[i]], [performance[i]*100],
+                       color=color_map(colorMapIdx(num_difficulties[i])),
+                       edgecolors='black', marker='o',zorder=10,
+                       s=s,        
+                       showlegend=False, second_y=False)
+      
   if PerfPlots.StimAPO in draw_plots:
     arr_stim_poke_out = np.ones(len(stim_poke_out)) * 100
     arr_stim_poke_out[(np.where(np.array(stim_poke_out) == 0)[0])] = np.nan
-    axes.step(x_data,arr_stim_poke_out,color='g',linestyle='-',
-              label='Stim-After-Poke',alpha=0.5,where="mid")
+    plotter.addTrace('step', x_data, arr_stim_poke_out, color='green',linestyle='-',
+                     label='Stim-After-Poke',alpha=0.5,where="mid", second_y=False)
 
 
   if any(perf_plot in draw_plots for perf_plot in [PerfPlots.SamplingT,
@@ -302,20 +853,24 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
                                                    PerfPlots.ReactionT,
                                                    PerfPlots.MaxFeedbackDelay,
                                                    PerfPlots.CatchWT]):
-    axes2 = axes.twinx()
-    axes2.tick_params(axis='y', labelcolor='k')
-    axes2.set_ylabel('Time (s)', color='k')
-    axes2.set_ylim(0, max(4,max(catch_wt_correct),max(catch_wt_error)))
+    plotter.secondYAxis()  
+    plotter.setYTickLabelcolor('black', second_y=True)
+    plotter.setYLabel('Time (s)', second_y=True)
+    plotter.setYLim(ymin=0, 
+                    ymax=max(4,max(catch_wt_correct),max(catch_wt_error)),
+                    second_y=True)
+    
     plots = [PerfPlots.SamplingT, PerfPlots.MovementT,
              PerfPlots.ReactionT, PerfPlots.MaxFeedbackDelay,
              PerfPlots.CatchWT, PerfPlots.CatchWT]
-    color=['r','m',"gray","orange",'g','r']
+    color=['red','magenta',"gray","orange",'green','red']
     if not reverse_alphas:
         alpha=[1.0, 0.6, 0.8, 0.5, 1.0, 1.0]
         shaded_alpha=[0.1, 0.15, 0.1, None, None, None]
     else:
         alpha=[0.2, 0.8, 0.8, 0.5, 1.0, 1.0]
         shaded_alpha=[0.04, 0.1, 0.1, None, None, None]
+    tracetype=['line','line','line','line','scatter','scatter']
     linestyle=['-', '-','-','-',"None","None"]
     marker=[None,None,None,None,'+','+']
     label=["Sampling Time (s)", "Movement Time (s)", "Reaction Time (s)",
@@ -326,53 +881,57 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
                                      catch_wt_error]):
       if plots[i] not in draw_plots or np.nansum(metric_data) == 0:
         continue
-      axes2.plot(x_data,metric_data,color=color[i],linestyle=linestyle[i],
-                 label=label[i],alpha=alpha[i],markeredgecolor=color[i],
-                 marker=marker[i])
+      plotter.addTrace(tracetype[i], x_data, metric_data, color=color[i],
+                       linestyle=linestyle[i], label=label[i],
+                       alpha=alpha[i], markeredgecolor=color[i],
+                       marker=marker[i], second_y=True)
       if stds[i]:
         metric_data=np.array(metric_data)
-        axes2.fill_between(x_data,metric_data-stds[i],metric_data+stds[i],
-                           color=color[i],alpha=shaded_alpha[i])
-
-  lines, labels = axes.get_legend_handles_labels()
-  # Add horizontal and vertical now after we got the labels, and add them later
-  # to the legend manually otherwise verticla lines doesn't show up in the
-  # legend correctly.
-  axes.axhline(y=0.5*100, color='gray',linestyle='dashed',zorder=-1)
+        plotter.fillBetween(x_data, metric_data-stds[i], metric_data+stds[i],
+                            color=color[i], alpha=shaded_alpha[i], second_y=True)
+  
+  plotter.createHLine(y=0.5*100, color='gray', linestyle='dashed', zorder = -1)
+   
   if (PerfPlots.HeadFixDate in draw_plots) and head_fixation_date \
    and head_fixation_session:
-    axes.axvline(x=head_fixation_session,color='gray',linestyle='-',alpha=1,
-                 zorder=-1)
-    lines.append(Line2D([], [], marker='|',linestyle='None',color='gray',
-                 alpha=0.8, markersize=10*SCALE_X))
-    labels.append("$1^{st}$ head-fixed session")
+    plotter.createVLine(x=head_fixation_session, color='gray', linestyle='-',
+                        alpha=1, zorder=-1)
+    
+    # We have to get the vertical line into the legend
+    # In MPL, we append empty traces to the legend items
+    # They have to be described with Line2D keywords
+    # In Plotly, we have to create actual traces outside of the axes ranges
+    plotter.addLegendItem(marker='|', linestyle='None', color='gray', alpha=0.8,
+                          markersize=10*SCALE_X, label="$1^{st}$ head-fixed session")
 
   if not axes_legend:
     return
 
-  # Continue getting the rest of the labels
-  lines2, labels2 = axes2.get_legend_handles_labels()
-  lines3=[]  # For difficulties  markers
-  labels3=[] # Also for difficulties markers
   if PerfPlots.DifficultiesCount in draw_plots:
     for i in range(1,4):
       # Don't create entry in legend if difficulty count was not used
       if i not in num_difficulties:
         continue
-      lines3.append(Line2D([], [], color=color_map(colorMapIdx(i)), marker='o',
-                    linestyle='None',markersize=7.5*SCALE_X,markeredgecolor='k'))
-      labels3.append('{} difficult{}'.format(i, 'y' if i == 1 else 'ies'))
-
+      label='{} difficult{}'.format(i, 'y' if i == 1 else 'ies')
+      plotter.addLegendItem(color=color_map(colorMapIdx(i)), marker='o', 
+                            linestyle='None', markeredgecolor='black', 
+                            label=label)
+                            
   fontP = FontProperties()
   fontP.set_size('small')
   #bbox_to_anchor=(1.5, 1.05)
   #bbox_to_anchor=(1*6.0/SAVE_FIG_SIZE[0], -0.15*4.0/SAVE_FIG_SIZE[1])
   bbox_to_anchor=(0.5,-0.18)
+  
+  plotter.legend(loc='upper center', bbox_to_anchor=bbox_to_anchor,
+                 ncol=3, fancybox=True, prop=fontP)
+  '''
   legend = axes2.legend(lines + lines2 + lines3,labels + labels2 + labels3,
                loc='upper center',
                bbox_to_anchor=bbox_to_anchor,ncol=3,fancybox=True,#shadow=True)
                prop=fontP)
   return legend
+  '''
 
 
 def initialTraining(df, animal_name, max_num_sessions):
@@ -447,8 +1006,7 @@ def initialTraining(df, animal_name, max_num_sessions):
                                                      animal_name), dpi=400)
 
 
-def trialRate(df, axes):
-  axes.set_title("Trial Rate - {}".format(" ".join(df.Name.unique())))
+def trialRate(df, plotter):
   groups = df.groupby([df.Date, df.SessionNum])
   if not len(groups):
     return
@@ -496,9 +1054,15 @@ def trialRate(df, axes):
       continue
     label = "Single Session ({} sessions)".format(len(groups)) if not done_once\
                                                                else None
+    if label is None:
+      showlegend = False
+    else:
+      showlegend = True
+      
     done_once = True
     x_data_min = x_data / 60 # Convert to minutes
-    axes.plot(x_data_min, session_df.TrialNumber, color="gray", label=label)
+    plotter.addTrace('line', x_data_min, session_df.TrialNumber, color="gray", 
+                     label=label, showlegend=showlegend)
     incl_sessions.append(pd.DataFrame({"Time":x_data,
                                        "TrialNumber":session_df.TrialNumber}))
 
@@ -530,28 +1094,34 @@ def trialRate(df, axes):
       #       "Optimized Cs:", optimized_Cs)
       y_data = fitFunc(x_data, *optimized_Cs)
       x_data_min = x_data / 60
-      axes.plot(x_data_min, y_data, color="k", label="Sessions Average",
-                linewidth=3*SCALE_X, alpha=0.8)
+      plotter.addTrace('line', x_data_min, y_data, color="black", 
+                       label="Sessions Average", linewidth=3*SCALE_X, alpha=0.8)
 
-    axes.axvline(median_session_time/60, linestyle="dashed", color='k',
-                 label="Median Session Time", alpha=0.8,
-                 zorder=len(max_sessions_time)) # Draw below average line
-    axes.axhline(median_session_trials_num, linestyle="dashed", color='k',
-                 label="Median Session Trials Count", alpha=0.8,
-                 zorder=len(max_sessions_time))
+    plotter.createVLine(median_session_time/60, linestyle="dashed", 
+                        color='black', label="Median Session Time", alpha=0.8, 
+                        zorder=len(max_sessions_time)) # Draw below average line
+    plotter.createHLine(median_session_trials_num, linestyle="dashed", 
+                        color='black', label="Median Session Trials Count", 
+                        alpha=0.8, zorder=len(max_sessions_time))
 
-  axes.xaxis.set_major_formatter(FuncFormatter(lambda x, _:'{}'.format(int(x))))
+  #axes.xaxis.set_major_formatter(FuncFormatter(lambda x, _:'{}'.format(int(x))))
+  # FuncFormatter takes tick name and position as arguments. 
+  # Position not used in this lambda function.
+  # Unused variables are named with underscore by convention.
+
   #axes.yaxis.tick_right()
   #axes.yaxis.set_label_position("right")
-  axes.set_xlabel("Time (Minutes)")
-  axes.set_ylabel("Trial Number")
-  axes.set_xlim(xmin=0)
-  axes.set_ylim(ymin=0)
+  
+  plotter.setGraphTitle("Trial Rate - {}".format(" ".join(df.Name.unique())))
+  plotter.setXLabel("Time (Minutes)")
+  plotter.setYLabel("Trial Number")
+  plotter.setXLim(xmin=0)
+  plotter.setYLim(ymin=0)
 
   if len(groups) > 1:
     pass # TODO: Implement this
     #groups.aggregate
-    axes.legend(loc="upper left")
+    plotter.legend(loc="upper left")
 
 
 def interceptSlope(df):
@@ -579,141 +1149,139 @@ def interceptSlope(df):
   intercept, slope = glm_res.params
   return intercept, slope
 
-def psychAxes(animal_name="", axes=None):
-    title="Psychometric Stim{}".format(
-                                  " " + animal_name if len(animal_name) else "")
-    x_label= "RDK Coherence"  if analysis_for == ExpType.RDK else "Light Intensity"
-    if not axes:
-        axes = plt.axes()
-    #axes.set_ylim(-.05, 1.05)
-    axes.set_ylim(-5, 105)
-    axes.set_xlim(-1.05, 1.05)
-    axes.set_xlabel(x_label)
-    axes.set_ylabel("Choice Left (%)")
-    axes.yaxis.set_major_formatter(
-                         FuncFormatter(lambda y, _: '{}%'.format(int(y))))
-    axes.set_title(title)
+def psychAxes(animal_name="", plotter=None):
+  title="Psychometric Stim{}".format(
+                                " " + animal_name if len(animal_name) else "")
+  x_label= "RDK Coherence"  if analysis_for == ExpType.RDK else "Light Intensity"
+  x_ticks=np.arange(-1,1.1,0.4)
+  def cohrStr(tick):
+    cohr = int(round(100*tick))
+    return "{}%{}".format(abs(cohr),'R' if cohr<0 else "" if cohr==0 else 'L')
+  x_labels=list(map(cohrStr, x_ticks))
 
-    x_ticks=np.arange(-1,1.1,0.4)
-    def cohrStr(tick):
-      cohr = int(round(100*tick))
-      return "{}%{}".format(abs(cohr),'R' if cohr<0 else "" if cohr==0 else 'L')
-    x_labels=list(map(cohrStr, x_ticks))
-    axes.set_xticks(x_ticks)
-    axes.set_xticklabels(x_labels)
-    axes.axvline(x=0, color='gray', linestyle='dashed', zorder=-10)
-    axes.axhline(y=50, color='gray', linestyle='dashed', zorder=-10)
-    return axes
-
+  #if not plotter:
+      #axes = plt.axes()
+      
+  #plotter.set_ylim(-.05, 1.05)
+  plotter.setGraphTitle(title)   
+  plotter.setYLim(-5, 105)
+  plotter.setXLim(-1.05, 1.05)
+  plotter.setXLabel(x_label)
+  plotter.setYLabel("Choice Left (%)")
+  plotter.setXTickValues(x_ticks)
+  plotter.setXTickLabels(x_labels)
+  plotter.setYTickSuffix('%')   
+  plotter.createVLine(x=0, color='gray', linestyle='dashed', zorder=-10)
+  plotter.createHLine(y=50,  color='gray', linestyle='dashed', zorder=-10)
+  
 def psychAll(df, PsycStim_axes):
-    _psych(df, PsycStim_axes, 'k', 3, "All")
+  _psych(df, PsycStim_axes, 'k', 3, "All")
 
-def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
+def _psych(df, plotter, color, linewidth, legend_name, plot_points=True,
            offset=False, SEM=False, GLM=True, min_slope=None):
-    '''Do the actual plotting'''
-    #ndxNan = isnan(DataCustom.ChoiceLeft);
-    ndxNan = df.ChoiceLeft.isnull()
-    ndxChoice = df.ForcedLEDTrial == 0
-    StimDV = df.DV
-    if plot_points:
-      StimBin = 10
-      EXTRA_BIN=2
-      BinIdx = pd.cut(StimDV,np.linspace(StimDV.min(), StimDV.max(),
-                      StimBin+EXTRA_BIN), labels=False, include_lowest=True)
-      # Choice trials
-      PsycY = df.ChoiceLeft[(~ndxNan) & ndxChoice].groupby(
-                                             BinIdx[~ndxNan & ndxChoice]).mean()
-      PsycY *= 100 # Convert to percentile
-      PsycX = (((np.unique(BinIdx[(~ndxNan) & ndxChoice])+1)/StimBin)*2)-1-(
-                                                          EXTRA_BIN*(1/StimBin))
-      if offset: # Shift points a little bit to the right/light so that their center
-                 # would overlap with the histogram bar's center, that's all
-        lt_zero = PsycX[PsycX<0]
-        gt_zero = PsycX[PsycX>0]
-        lt_zero += 0.5/(StimBin/2)
-        gt_zero -= 0.5/(StimBin/2)
-        PsycX = np.concatenate([lt_zero,gt_zero])
-
-      # WTerr = df.FeedbackTime[ndxError & ndxMinWT].groupby(
+  '''Do the actual plotting'''
+  #ndxNan = isnan(DataCustom.ChoiceLeft);
+  ndxNan = df.ChoiceLeft.isnull()
+  ndxChoice = df.ForcedLEDTrial == 0
+  StimDV = df.DV
+  if plot_points:
+    StimBin = 10
+    EXTRA_BIN=2
+    BinIdx = pd.cut(StimDV,np.linspace(StimDV.min(), StimDV.max(),
+                    StimBin+EXTRA_BIN), labels=False, include_lowest=True)
+    # Choice trials
+    PsycY = df.ChoiceLeft[(~ndxNan) & ndxChoice].groupby(
+                                           BinIdx[~ndxNan & ndxChoice]).mean()
+    PsycY *= 100 # Convert to percentile
+    PsycX = (((np.unique(BinIdx[(~ndxNan) & ndxChoice])+1)/StimBin)*2)-1-(
+                                                        EXTRA_BIN*(1/StimBin))
+    
+    if offset: # Shift points a little bit to the right/light so that their center
+               # would overlap with the histogram bar's center, that's all
+      lt_zero = PsycX[PsycX<0]
+      gt_zero = PsycX[PsycX>0]
+      lt_zero += 0.5/(StimBin/2)
+      gt_zero -= 0.5/(StimBin/2)
+      PsycX = np.concatenate([lt_zero,gt_zero])
+      
+    # WTerr = df.FeedbackTime[ndxError & ndxMinWT].groupby(
                                             #BinIdx[ndxError & ndxMinWT]).mean()
-      # Xerr = (((np.unique(BinIdx[ndxError & ndxMinWT])+1)/DVNBin)*2)-1-(
-                                                          #EXTRA_BIN*(1/DVNBin))
-      PsycStim_axes.plot(PsycX, PsycY, linestyle='none', marker='o',
-                         markeredgecolor=color, markerfacecolor=color,
-                         markerSize=1.5*linewidth*SCALE_X)
+    # Xerr = (((np.unique(BinIdx[ndxError & ndxMinWT])+1)/DVNBin)*2)-1-(
+                                                          #EXTRA_BIN*(1/DVNBin))                                                    
+    plotter.addTrace('scatter', PsycX, PsycY, marker='o', c=color,
+                     edgecolors=color, s=1.5*linewidth*SCALE_X,
+                     showlegend=False)   
+      
+  if np.sum((~ndxNan) & ndxChoice) > 1:
+    x = StimDV[(~ndxNan) & ndxChoice]
+    y = df.ChoiceLeft[(~ndxNan) & ndxChoice]
 
-    if np.sum((~ndxNan) & ndxChoice) > 1:
-        x = StimDV[(~ndxNan) & ndxChoice]
-        y = df.ChoiceLeft[(~ndxNan) & ndxChoice]
+    x_sampled = np.linspace(StimDV.min(),StimDV.max(),50)
+    if GLM:
+      import statsmodels.formula.api as smf
+      import statsmodels.api as sm
+      import statsmodels.tools.sm_exceptions as sm_exceptions
 
-        x_sampled = np.linspace(StimDV.min(),StimDV.max(),50)
-        if GLM:
-          import statsmodels.formula.api as smf
-          import statsmodels.api as sm
-          import statsmodels.tools.sm_exceptions as sm_exceptions
+      glm_df = pd.DataFrame({'DV':x, 'ChoiceLeft':y})
+      mod1 = smf.glm('ChoiceLeft~DV', data=glm_df,
+                     family=sm.families.Binomial(sm.families.links.logit()))
+      try:
+        glm_res = mod1.fit()
+      except sm_exceptions.PerfectSeparationError:
+        print("skipping GLM fit for for session(s):", df.Date.unique())
+        print("PsycX len: ", len(x), len(y))
+        return None, None
+      #print(glm_res.summary())
+      intercept, slope = glm_res.params
+      if min_slope != None and slope < min_slope:
+        return intercept, slope
+      #print("Intercept:", intercept, "- Slope:", slope)
+      from scipy.special import logit
+      y_points = glm_res.predict(pd.DataFrame({'DV':x_sampled}))
+      conf_df = glm_res.conf_int()
+      int_low, int_upper = conf_df.iloc[0,0], conf_df.iloc[0,1]
+      #print("conf df :", conf_df)
+      conf_df = glm_res.get_prediction(pd.DataFrame({'DV':x_sampled})).conf_int(alpha=0.05)
+      #print("2. conf df :", conf_df.shape)
+      int_low = conf_df[:,0]
+      int_upper = conf_df[:,1]
+      #print("Using int_low:", int_low)
+      #print("Using int upper:", int_upper)
+    else:
+      def fsigmoid(x, a, b):
+        return 1.0 / (1.0 + np.exp(-a*(x-b)))
+      #y_ind = fsigmoid(np.linspace(-1,1,len(PsycX)), 2, 0)
+      try:
+        popt, pcov = curve_fit(fsigmoid, x, y, maxfev=1000)# , method='dogbox',
+                               # bounds=([0, 0.],[100, 1.]))
+      except RuntimeError:
+        print("skipping sigmoidal fit for for session(s):", df.Date.unique())
+        print("PsycX len: ", len(x), len(y))
+        return None, None
+      else:
+        y_points = fsigmoid(x_sampled, *popt)
 
-          glm_df = pd.DataFrame({'DV':x, 'ChoiceLeft':y})
-          mod1 = smf.glm('ChoiceLeft~DV', data=glm_df,
-                         family=sm.families.Binomial(sm.families.links.logit()))
-          try:
-            glm_res = mod1.fit()
-          except sm_exceptions.PerfectSeparationError:
-            print("skipping GLM fit for for session(s):", df.Date.unique())
-            print("PsycX len: ", len(x), len(y))
-            return None, None
-          #print(glm_res.summary())
-          intercept, slope = glm_res.params
-          if min_slope != None and slope < min_slope:
-            return intercept, slope
-          #print("Intercept:", intercept, "- Slope:", slope)
-          from scipy.special import logit
-          y_points = glm_res.predict(pd.DataFrame({'DV':x_sampled}))
-          conf_df = glm_res.conf_int()
-          int_low, int_upper = conf_df.iloc[0,0], conf_df.iloc[0,1]
-          #print("conf df :", conf_df)
-          conf_df = glm_res.get_prediction(pd.DataFrame({'DV':x_sampled})).conf_int(alpha=0.05)
-          #print("2. conf df :", conf_df.shape)
-          int_low = conf_df[:,0]
-          int_upper = conf_df[:,1]
-          #print("Using int_low:", int_low)
-          #print("Using int upper:", int_upper)
-        else:
-          def fsigmoid(x, a, b):
-              return 1.0 / (1.0 + np.exp(-a*(x-b)))
-          #y_ind = fsigmoid(np.linspace(-1,1,len(PsycX)), 2, 0)
-          try:
-            popt, pcov = curve_fit(fsigmoid, x, y, maxfev=1000)# , method='dogbox',
-                                   # bounds=([0, 0.],[100, 1.]))
-          except RuntimeError:
-            print("skipping sigmoidal fit for for session(s):", df.Date.unique())
-            print("PsycX len: ", len(x), len(y))
-            return None, None
-          else:
-            y_points = fsigmoid(x_sampled, *popt)
+    #print("Sigmoid: ", fsigmoid(PsycX, *popt))
+    if len(legend_name):
+      legend_name="{}{}".format(legend_name,
+                "" if not plot_points else " ({:,} trials)".format(len(df)))
+      showlegend=True
+    else:
+      legend_name=None
+      showlegend=False
+    plotter.addTrace('line', x_sampled, y_points*100, color=color, 
+                      linewidth=linewidth*SCALE_X, label=legend_name,
+                      showlegend=showlegend)
 
-        #print("Sigmoid: ", fsigmoid(PsycX, *popt))
-        if len(legend_name):
-          legend_name="{}{}".format(legend_name,
-                    "" if not plot_points else " ({:,} trials)".format(len(df)))
-        else:
-          legend_name=None
-        PsycStim_axes.plot(x_sampled, y_points * 100, # Convert y to percentile
-                           color=color, linewidth=linewidth*SCALE_X,
-                           label=legend_name)
-
-        # print("label: {} - len data: {}".format(legend_name, len(y)))
-        if SEM:
-          #sem_lower, sem_upper = (int_low, int_upper) if GLM else (-y.sem(), y.sem())
-          y_sem_lower = (int_low * 100) if GLM else y_points - (y.sem() * 100)
-          y_sem_upper = (int_upper * 100) if GLM else y_points +  (y.sem() * 100)
-          PsycStim_axes.fill_between(x_sampled, y_sem_upper, y_sem_lower, color=color,
-                                     alpha=0.2)
-        if GLM:
-          #print("Intercept:", intercept, "- Slope:", slope)
-          return intercept, slope
-        else:
-          return None, None
-
+    # print("label: {} - len data: {}".format(legend_name, len(y)))
+    if SEM:
+      #sem_lower, sem_upper = (int_low, int_upper) if GLM else (-y.sem(), y.sem())
+      y_sem_lower = (int_low * 100) if GLM else y_points - (y.sem() * 100)
+      y_sem_upper = (int_upper * 100) if GLM else y_points +  (y.sem() * 100)
+      plotter.fillBetween(x_sampled, y_sem_upper, y_sem_lower, color=color,
+                            alpha=0.2)
+    if GLM:
+      #print("Intercept:", intercept, "- Slope:", slope)
 
 #chosen_days = RDK_days if analysis_for == ExpType.RDK else lightintensity_days
 
@@ -761,44 +1329,43 @@ def dfGenerator():
 
 
 METHOD="sum"
-def psychAnimalSessions(df,ANIMAL,PsycStim_axes,METHOD):
-    if not len(df):
-        return
-    assert len(df.Name.unique()) == 1 # Assure that we only have one mouse
-    df = df.sort_values(["Date","SessionNum","TrialNumber"])
-    sessions = df.groupby([df.Date, df.SessionNum])
-    used_sessions = []
-    done_once = False
-    for i, (date_sessionnum, session) in enumerate(sessions):
-      date, session_num = date_sessionnum
-      #print("Session:",date,session_num)
-      num_trials = session.MaxTrial.unique()[0]
-      title="Single Session Performance" if not done_once else ""
-      LINE_WIDTH=0.5
-      ret = _psych(session,PsycStim_axes,"gray",LINE_WIDTH,title,
-                   plot_points=False)
-      if ret != (None, None):
-        done_once = True
-        used_sessions.append(session)
-    # Merge used sessions
-    sessions = pd.concat(used_sessions)
-    LINE_WIDTH=3
-    _psych(sessions, PsycStim_axes,'k',LINE_WIDTH,"Avg. Session Performance",
-           offset=True)
-    plotNormTrialDistrib(sessions,PsycStim_axes,METHOD)
-    handles, labels = PsycStim_axes.get_legend_handles_labels()
-    labels[0] = labels[0] + " ({:,} sessions)".format(len(used_sessions))
-    #PsycStim_axes.legend(handles, labels, loc='upper left', prop={'size': 'x-small'})
-    bbox_to_anchor = (0.5, -0.2)
-    PsycStim_axes.legend(handles, labels, loc='upper center',
-              bbox_to_anchor=bbox_to_anchor,ncol=2,fancybox=True,
-              prop={'size': 'x-small'})
+def psychAnimalSessions(df,ANIMAL,plotter,METHOD):
+  if not len(df):
+      return
+  assert len(df.Name.unique()) == 1 # Assure that we only have one mouse
+  df = df.sort_values(["Date","SessionNum","TrialNumber"])
+  sessions = df.groupby([df.Date, df.SessionNum])
+  used_sessions = []
+  done_once = False
+  for i, (date_sessionnum, session) in enumerate(sessions):
+    date, session_num = date_sessionnum
+    #print("Session:",date,session_num)
+    num_trials = session.MaxTrial.unique()[0]
+    title="Single Session Performance" if not done_once else ""
+    LINE_WIDTH=0.5
+    ret = _psych(session,plotter,"gray",LINE_WIDTH,title,
+                 plot_points=False)
+    if ret != (None, None):
+      done_once = True
+      used_sessions.append(session)
+  # Merge used sessions
+  sessions = pd.concat(used_sessions)
+  LINE_WIDTH=3.0
+  _psych(sessions, plotter,'black',LINE_WIDTH,"Avg. Session Performance",
+         offset=True)
+  plotNormTrialDistrib(sessions,plotter,METHOD)
+  
+  new_text = " ({:,} sessions)".format(len(used_sessions))
+  plotter.updateLegendText(new_text, legend_item=0, append=True)
+  
+  plotter.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2), ncol=2, 
+                 fancybox=True, prop={'size': 'x-small'})
 
-def plotNormTrialDistrib(df,axes,METHOD):
+def plotNormTrialDistrib(df,plotter,METHOD):
     ndxNan = df.ChoiceLeft.isnull()
     ndxChoice = df.ForcedLEDTrial == 0
-    difficulties = df.DV[(~ndxNan) & ndxChoice]
-    counts, bins = np.histogram(difficulties,bins=10)
+    difficulties = df.DV[(~ndxNan) & ndxChoice] # tilde inverts (DV values where ndxNan is False and ndxChoice is True, meaning: ChoiceLeft is not 0, ForcedLEDTrial is 0.
+    counts, bins = np.histogram(difficulties,bins=10) # bins=array([-1. , -0.8, -0.6, -0.4, -0.2,  0. ,  0.2,  0.4,  0.6,  0.8,  1. ]). Values define bin borders.
     counts = counts.astype(np.float)
     if METHOD == "max":
       counts /= counts.max()
@@ -806,10 +1373,9 @@ def plotNormTrialDistrib(df,axes,METHOD):
       counts /= sum(counts)
     else:
       raise ("Unknown METHOD " + METHOD)
-    axes.bar(bins[:-1],counts*100,width=0.2,align='edge',zorder=-1,color='pink',
-             edgecolor='k',label="Norm. difficulty distribution")
-
-
+    
+    plotter.addTrace('bar', bins[:-1], counts*100, width=0.2,align='edge', zorder=-1,
+                   color='pink', edgecolor='black', label="Norm. difficulty distribution")
 def filterSession(df,skip_first,skip_last,min_date,min_perf):
     all_sessions = df.groupby([df.Date,df.SessionNum])
     used_sessions = []
