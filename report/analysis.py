@@ -1280,7 +1280,7 @@ def _psych(df, plotter, color, linewidth, legend_name, plot_points=True,
       y_sem_upper = (int_upper * 100) if GLM else y_points +  (y.sem() * 100)
       plotter.fillBetween(x_sampled, y_sem_upper, y_sem_lower, color=color,
                             alpha=0.2)
-    if GLM:
+    #if GLM:
       #print("Intercept:", intercept, "- Slope:", slope)
 
 #chosen_days = RDK_days if analysis_for == ExpType.RDK else lightintensity_days
