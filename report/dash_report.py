@@ -38,43 +38,57 @@ app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 app.layout = html.Div([
     html.Div([
-        html.Div([html.Label('Mouse ID'),
-              
-                  dcc.Dropdown(id = 'mouse-drop',
-                               options = [{'label': i, 'value': i} for i in mice_names],
-                               value = None)],
-                  style={'width':'30%', 'display':'inline-block', 
-                         'vertical-align':'top'}),
-                               
-        html.Div([html.Label('To select 1 day, pick only start date.'),
-                  
-                  dcc.DatePickerRange(id = 'calendar'),
-                  
-                  dcc.Checklist(id = 'date-checkbox',
-                                options = [{'label':'Pick all dates', 
-                                            'value':'pick-all'}],
-                                value = [])],
-                  style={'width':'30%','display':'inline-block','vertical-align':'top'}),
+        html.Div([
+            html.Label('Mouse ID'),
+            dcc.Dropdown(
+                id = 'mouse-drop',
+                options = [{'label': i, 'value': i} for i in mice_names],
+                value = None
+                )
+            ]),
+            
+        html.Div([
+            html.Label('To select 1 day, pick only start date.'),
+            dcc.DatePickerRange(id = 'calendar',
+                                day_size = 29),
+            dcc.Checklist(
+                id = 'date-checkbox',
+                options = [{'label':'Pick all dates', 'value':'pick-all'}],
+                value = []
+                )
+            ]),
+
+        html.Div([
+            html.Button(id='submit-button', n_clicks=0, children='Plot')
+            ])
+],
+        className='sidenav'
+        ),
         
-        html.Div([html.Button(id='submit-button', n_clicks=0, children='Submit')],
-                 style={'display':'inline-block','vertical-align':'top'})
-                  ]),            
-    
-    html.Div([
-        dcc.Graph(id='graph1', 
-                  style={'width': '48%', 'display': 'inline-block'}),
-         
-        dcc.Graph(id='graph2',
-                  style={'width': '48%', 'float': 'right', 'display': 'inline-block'})
-        ]),
-           
-    dcc.Graph(id='graph3'),
-         
-    dcc.Graph(id='graph4'),
-  
-    # hidden div to store sub-df as json?  
-    html.Div(id='hidden-div', style={'display': 'none'})
-    ])
+    html.Div([        
+        html.Div([
+            dcc.Graph(
+                id='graph1',
+                style={'width': '50%', 'display': 'inline-block'}
+                ),
+                  
+            dcc.Graph(
+                id='graph2',
+                style={'width': '50%', 'float': 'right', 'display': 'inline-block'}
+                )
+            ]),
+        
+        html.Div([       
+            dcc.Graph(id='graph3'),
+                 
+            dcc.Graph(id='graph4')
+            ]),
+      
+        # hidden div to store sub-df as json?  
+        html.Div(id='hidden-div', style={'display': 'none'})
+    ],
+    className='main'
+    )])
 '''
 dcc.Slider(
         id='session-slider',
@@ -164,6 +178,8 @@ def update_graph(clicks, mouse_name, start, end): # var 1: Input val 1; var2: In
   if mouse_name is None:
     raise PreventUpdate
     # Print error message
+  if start is None and end is None:
+    raise PreventUpdate
    
   start_date = dt.datetime.strptime(start, '%Y-%m-%d')
   start_date = start_date.date()

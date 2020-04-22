@@ -146,11 +146,11 @@ class Plotter:
     else:
       col = mpl.colors.to_rgba(color)
       fillcolor = 'rgba({}, {}, {}, {})'.format(col[0], col[1], col[2], alpha)
-      # Draw 100% transparent line (upper border) as guide
+      # Draw 100% transparent line (upper or lower border) as guide
       self.graphly.add_trace(go.Scatter(x=x, y=y1, line_color='rgba(0,0,0,0)',
                                         showlegend=False),
                              secondary_y=second_y)
-      # Fill from lower border to upper (tonexty means from this to previously drawn line)
+      # Fill from other border (tonexty means from this to previously drawn line)
       self.graphly.add_trace(go.Scatter(x=x, y=y2, mode='none', fill='tonexty',
                                         fillcolor=fillcolor, showlegend=False),
                              secondary_y=second_y)
