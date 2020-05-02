@@ -25,7 +25,7 @@ class Plotter:
                 'zorder', 'edgecolor', 'handles', 'labels', 'loc', 
                 'bbox_to_anchor', 'ncol', 'fancybox', 'prop', 'alpha', 
                 'edgecolors', 's', 'where', 'c']
-  PLOTLY_KWARGS = ['showlegend']  
+  PLOTLY_KWARGS = ['showlegend', 'marker_color', 'marker_symbol', 'name']
   
   # These are default style settings to make the plotly figs look like mpl figs
   PLOTLY_LAYOUT = dict(plot_bgcolor='white',
@@ -503,46 +503,68 @@ class Plotter:
     else:
       self.graphly.update_yaxes(tickcolor=labelcolor, secondary_y=second_y)
   
-  def createVLine(self, x, **kwargs):
+  def createVLine(self, x, second_y=None, **kwargs):
     mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
        
     if Plotter._IS_MPL:
       conv_kwargs = self._convertKWArgs('line', **plotly_kwargs)
       mpl_kwargs.update(conv_kwargs)
 
-      self.axes.axvline(x=x, **mpl_kwargs)
-    
+      if second_y:
+        axis = self.axes2
+      else:
+        axis = self.axes
+
+      if 'label' in mpl_kwargs and mpl_kwargs['linestyle'] in ['-', 'solid']:
+        # In this case, we want a vertical marker symbol in the legend
+        # We need to add the legend entry seperately
+        line = Line2D([], [], marker='|', linestyle='None',
+                      color=mpl_kwargs['color'],
+                      markersize=10*SCALE_X,
+                      label=mpl_kwargs['label'])
+        self._handles3.append(line)
+        self._labels3.append(line.get_label())
+
+      axis.axvline(x=x, **mpl_kwargs)
+
     else:
       conv_kwargs = self._convertKWArgs('line', **mpl_kwargs)
       plotly_kwargs.update(conv_kwargs)
-      
+      if 'name' in plotly_kwargs:
+        if 'line_dash' in plotly_kwargs and plotly_kwargs['line_dash'] not in ['solid', '-']:
+          self.addTrace('line', x=[-5], y=[-5], second_y=second_y, **kwargs)
+
+        else:
+          self.addTrace('scatter', x=[-5], y=[-5], second_y=second_y,
+                        marker_symbol='line_ns_open',
+                        marker_color=plotly_kwargs['line_color'],
+                        name=plotly_kwargs['name'])
+
       self.graphly.add_shape(type='line', layer='below',
                              yref='paper', y0=0, y1=1,
                              xref='x', x0=x, x1=x,
                              **plotly_kwargs)
-      '''
-      self.graphly.add_shape(dict(type='line',
-                                  line=dict(color=color,
-                                            width=1.5*SCALE_X,
-                                            dash='dash'),
-                                  layer='below',
-                                  yref='paper', y0=0, y1=1,
-                                  xref='x', x0=x_position, x1=x_position))
-      '''
   
-  def createHLine(self, y, **kwargs):
+  def createHLine(self, y, second_y=None, **kwargs):
     mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
        
     if Plotter._IS_MPL:
       conv_kwargs = self._convertKWArgs('line', **plotly_kwargs)
       mpl_kwargs.update(conv_kwargs)
+      if second_y:
+        axis = self.axes2
+      else:
+        axis = self.axes
 
-      self.axes.axhline(y=y, **mpl_kwargs)    
+      axis.axhline(y=y, **mpl_kwargs)
     
     else:
       conv_kwargs = self._convertKWArgs('line', **mpl_kwargs)
       plotly_kwargs.update(conv_kwargs)
       
+      if 'name' in plotly_kwargs:
+          self.addTrace('line', x=[-5], y=[-5], second_y=second_y, **kwargs)
+
       if self._second_y_axis is False:
         x1=1
       else:
@@ -890,19 +912,19 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
         plotter.fillBetween(x_data, metric_data-stds[i], metric_data+stds[i],
                             color=color[i], alpha=shaded_alpha[i], second_y=True)
   
-  plotter.createHLine(y=0.5*100, color='gray', linestyle='dashed', zorder = -1)
+  plotter.createHLine(y=0.5*100, color='gray', linestyle='dashed', zorder=-1)
    
   if (PerfPlots.HeadFixDate in draw_plots) and head_fixation_date \
    and head_fixation_session:
     plotter.createVLine(x=head_fixation_session, color='gray', linestyle='-',
-                        alpha=1, zorder=-1)
+                        alpha=1, zorder=-1, label="$1^{st}$ head-fixed session")
     
     # We have to get the vertical line into the legend
     # In MPL, we append empty traces to the legend items
     # They have to be described with Line2D keywords
     # In Plotly, we have to create actual traces outside of the axes ranges
-    plotter.addLegendItem(marker='|', linestyle='None', color='gray', alpha=0.8,
-                          markersize=10*SCALE_X, label="$1^{st}$ head-fixed session")
+    #plotter.addLegendItem(marker='|', linestyle='None', color='gray', alpha=0.8,
+     #                     markersize=10*SCALE_X, label="$1^{st}$ head-fixed session")
 
   if not axes_legend:
     return
