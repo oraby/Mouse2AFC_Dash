@@ -14,6 +14,704 @@ import numpy as np
 from scipy.optimize import curve_fit
 import pandas as pd
 from enum import Enum, auto, unique
+import plotly.graph_objects as go
+import warnings
+from operator import attrgetter
+
+class TraceType(Enum):
+  Bar = auto()
+  Scatter = auto()
+  Line = auto()
+  Step = auto()
+  HVline = auto()
+
+class Plotter:
+  class DeferredTrace:
+    def __init__(self, draw_fn, draw_count, x, y1, zorder, **kwargs):
+      '''
+      In Plotly, trace order depends on the order of plotting funcs in the
+      script.
+      There is no way to set a different order, comparable to Matlabs 'zorder'.
+      To implement zorder for Plotly, trace drawing needs to be delayed.
+      This class stores the plotting function and arguments of all traces that
+      should appear in a plot as class instances.
+      Class instances are collected in the list _deferred_traces.
+      When all traces that should appear in one plot were collected, the list
+      is ordered according to 1. zorder and 2. order in script (draw_count),
+      and traces are actually drawn (see Plotter.draw()).
+      '''
+      self._draw_fn = draw_fn
+      self._draw_count = draw_count
+      self._x = x
+      self._y1 = y1
+      self._zorder = zorder # Sometimes passed as keyword argument
+      self._kwargs = kwargs
+
+  Y1_AXIS_ID = 'y1'
+  Y2_AXIS_ID = 'y2'
+  # These are default style settings to make the plotly figs look like mpl figs
+  PLOTLY_LAYOUT = dict(plot_bgcolor='white',
+                       xaxis=dict(showline=True,
+                                  linewidth=1,
+                                  linecolor='black',
+                                  mirror=True,
+                                  ticks='outside'),
+                       yaxis=dict(showline=True,
+                                  linewidth=1,
+                                  linecolor='black',
+                                  mirror=True,
+                                  ticks='outside',
+                                  side='left'))
+  PLOTLY_LAYOUT_Y2 = dict(yaxis2=dict(overlaying='y',
+                                      side='right',
+                                      ticks='outside'))
+
+  @staticmethod # Function of the class, not of the instance of a class.
+  def setPlotType(*, is_mpl): # all args after * must be specified by keyword
+    Plotter._IS_MPL = is_mpl
+
+  def __init__(self, axes_or_graph_obj=None):
+    self._yaxis_id = self.Y1_AXIS_ID
+    self._deferred_traces = []
+    self._draw_count = 0 # Tracks order of drawing functions in script
+    self._already_drawn = False
+    if Plotter._IS_MPL:
+      self.axes = axes_or_graph_obj if axes_or_graph_obj else plt.axes()
+       # These are for legend items added with addLegendItem() and h/v lines
+      self._extra_handles = []
+      self._extra_labels = []
+      self._handles_list = []
+      self._labels_list = []
+    else:
+      self.graph_obj = axes_or_graph_obj if axes_or_graph_obj else go.Figure()
+      # This is unnecessary, if graph object is passed by addYAxis
+      # But no problem, does not overwrite previous layout changes
+      self.graph_obj.update_layout(self.PLOTLY_LAYOUT)
+      self._tracenames = [] # Used by updateLegendText()
+
+  def addYAxis(self):
+    '''
+    A second y axis is added by creating a second plotter instance.
+    In MPL, this instance points to a new axis object created by twinx().
+    In Plotly, it points to the same graph object as the original plotter inst.
+    '''
+    if self._yaxis_id == self.Y2_AXIS_ID:
+      raise RuntimeError('This axis is already the second y-axis')
+    elif hasattr(self, '_child_plotter'):
+      raise RuntimeError('Plot already has second y-axis')
+    ax = self.axes.twinx() if Plotter._IS_MPL else self.graph_obj
+    plotter2 = Plotter(ax)
+    if not Plotter._IS_MPL:
+      # plotter2.graph_obj.update... would have the same effect
+      self.graph_obj.update_layout(Plotter.PLOTLY_LAYOUT_Y2)
+    plotter2._yaxis_id = self.Y2_AXIS_ID
+    self._child_plotter = plotter2
+    return plotter2
+
+  def addScatter(self, x, y, zorder=2, **mpl_kwargs):
+    '''
+    addScatter() can be used for marker plots with an additional color
+    dimension.
+    If no color dimension is needed, addLine() can be used instead, with
+    linestyle set to 'None'.
+    '''
+    if Plotter._IS_MPL:
+      dt = self.DeferredTrace(self.axes.scatter, self._draw_count, x, y,
+                              zorder, **mpl_kwargs)
+    else:
+      plotly_kwargs = self._convertKWArgs(TraceType.Scatter, **mpl_kwargs)
+      dt = self.DeferredTrace(go.Scatter, self._draw_count, x, y, zorder,
+                              mode='markers', **plotly_kwargs)
+    self._deferred_traces.append(dt)
+    self._draw_count += 1
+
+  def addLine(self, x, y, zorder=2, **mpl_kwargs):
+    if Plotter._IS_MPL:
+      dt = self.DeferredTrace(self.axes.plot, self._draw_count, x, y,
+                              zorder, **mpl_kwargs)
+    else:
+      plotly_kwargs = self._convertKWArgs(TraceType.Line, **mpl_kwargs)
+      dt = self.DeferredTrace(go.Scatter, self._draw_count, x, y, zorder,
+                              **plotly_kwargs)
+    self._deferred_traces.append(dt)
+    self._draw_count += 1
+
+  def addBar(self, x, y, zorder=2, **mpl_kwargs):
+    if Plotter._IS_MPL:
+      dt = self.DeferredTrace(self.axes.bar, self._draw_count, x, y,
+                              zorder, **mpl_kwargs)
+    else:
+      plotly_kwargs = self._convertKWArgs(TraceType.Bar, **mpl_kwargs)
+      if ('align', 'edge') in mpl_kwargs.items():
+        # Aligns left edges instead of center of bars with x
+        # In Plotly, we have to add the width of half a bin to all x-values to
+        # get the same effect
+        half_bin = round((x[-1] - x[-2])*0.5, 1)
+        x = x+half_bin # works only if x is numpy array
+      dt = self.DeferredTrace(go.Bar, self._draw_count, x, y, zorder,
+                              **plotly_kwargs)
+    self._deferred_traces.append(dt)
+    self._draw_count += 1
+
+  def addStep(self, x, y, zorder=2, **mpl_kwargs):
+    if Plotter._IS_MPL:
+      dt = self.DeferredTrace(self.axes.step, self._draw_count, x, y,
+                              zorder, **mpl_kwargs)
+    else:
+      plotly_kwargs = self._convertKWArgs(TraceType.Step, **mpl_kwargs)
+      dt = self.DeferredTrace(go.Scatter, self._draw_count, x, y, zorder,
+                              mode='lines', line_shape='hv', **plotly_kwargs)
+    self._deferred_traces.append(dt)
+    self._draw_count += 1
+
+  def fillBetween(self, x, y1, y2, color, alpha=1, zorder=2):
+    if Plotter._IS_MPL:
+      dt = self.DeferredTrace(self.axes.fill_between, self._draw_count,
+                              x, y1, y2=y2, color=color, alpha=alpha,
+                              zorder=zorder)
+    else:
+      col = mpl.colors.to_rgba(color)
+      fillcolor = 'rgba({}, {}, {}, {})'.format(col[0], col[1], col[2], alpha)
+      # Draw 100% transparent line (upper or lower border) as guide
+      dt = self.DeferredTrace(go.Scatter, self._draw_count, x, y1,
+                              line_color='rgba(0,0,0,0)', showlegend=False,
+                              yaxis=self._yaxis_id, zorder=zorder)
+      self._deferred_traces.append(dt)
+      self._draw_count += 1
+      # Fill from 2nd border (tonexty means from this to previously drawn line)
+      dt = self.DeferredTrace(go.Scatter, self._draw_count, x, y2,
+                              mode='none', fill='tonexty', fillcolor=fillcolor,
+                              showlegend=False, yaxis=self._yaxis_id,
+                              zorder=zorder)
+    self._deferred_traces.append(dt)
+    self._draw_count += 1
+
+  def createVLine(self, x, zorder=1, **mpl_kwargs):
+    if Plotter._IS_MPL:
+      if 'label' in mpl_kwargs:
+        # Ideally, we want a vertical marker to represent the vline in the
+        # legend.
+        # We can add such a marker 'manually' to the legend.
+        # This works only for solid lines (no vertical markers available for
+        # dashed lines).
+        # We have to remove 'label' from kwargs to avoid getting 2 entries.
+        label = mpl_kwargs.pop('label')
+        if 'linestyle' in mpl_kwargs and mpl_kwargs['linestyle'] in \
+         ['-', 'solid']:
+          line = Line2D([], [], marker='|', linestyle='None',
+                        color=mpl_kwargs['color'],
+                        markersize=10*SCALE_X,
+                        label=label)
+        else:
+          line = Line2D([], [], label=label, **mpl_kwargs)
+        # vlines and hlines will appear in their own legend group
+        self._extra_handles.append(line)
+        self._extra_labels.append(label)
+      self.axes.axvline(x=x, zorder=zorder, **mpl_kwargs)
+    else:
+      plotly_kwargs = self._convertKWArgs(TraceType.HVline, **mpl_kwargs)
+      if 'name' in plotly_kwargs:
+        self._tracenames.append(plotly_kwargs['name'])
+        # In Plotly, we also want a vertical marker in the legend
+        # Here, too, this only works for solid lines
+        if 'line_dash' in plotly_kwargs and \
+         plotly_kwargs['line_dash'] not in ['solid', '-']:
+          # In Plotly, we have to draw a dummy trace to get a legend entry
+          # Deferring is not necessary for trace layering here, because only
+          #  the legend entry is created.
+          # It is useful, however, to get legend groups in the right order;
+          #  by setting zorder to a high value, h/v lines appear at the end
+          #  of the legend, as convention requires.
+          dt = self.DeferredTrace(go.Scatter, self._draw_count,
+                                  x=[-5], y1=[-5], zorder=10000,
+                                  mode='lines', legendgroup='extra',
+                                  **plotly_kwargs)
+        else:
+          dt = self.DeferredTrace(go.Scatter, self._draw_count,
+                                  x=[-5], y1=[-5], zorder=10000,
+                                  mode='markers', marker_symbol='line_ns_open',
+                                  marker_color=plotly_kwargs['line_color'],
+                                  name=plotly_kwargs['name'],
+                                  legendgroup='extra')
+        self._deferred_traces.append(dt)
+        self._draw_count += 1
+
+      # In plotly, v and h lines can only be in highest or lowest layer
+      layer = 'above' if zorder>1 else 'below'
+      # H/Vlines can only be created as shapes
+      self.graph_obj.add_shape(type='line', layer=layer,
+                               yref='paper', y0=0, y1=1,
+                               xref='x', x0=x, x1=x,
+                               **plotly_kwargs)
+
+  def createHLine(self, y, zorder=1, **mpl_kwargs):
+    if Plotter._IS_MPL:
+      if 'label' in mpl_kwargs:
+        label = mpl_kwargs.pop('label')
+        line = Line2D([], [], label=label, **mpl_kwargs)
+        self._extra_handles.append(line)
+        self._extra_labels.append(label)
+      self.axes.axhline(y=y, zorder=zorder, **mpl_kwargs)
+    else:
+      plotly_kwargs = self._convertKWArgs(TraceType.HVline, **mpl_kwargs)
+      if 'name' in plotly_kwargs:
+        self._tracenames.append(plotly_kwargs['name'])
+        dt = self.DeferredTrace(go.Scatter, self._draw_count,
+                                x=[-5], y1=[-5], zorder=10000,
+                                mode='lines', legendgroup='extra',
+                                **plotly_kwargs)
+        self._deferred_traces.append(dt)
+        self._draw_count += 1
+
+      layer = 'above' if zorder>1 else 'below'
+      self.graph_obj.add_shape(type='line', layer=layer,
+                               xref='paper', x0=0, x1=1,
+                               yref=self._yaxis_id, y0=y, y1=y,
+                               **plotly_kwargs)
+
+  def legend(self, **mpl_kwargs):
+    '''
+    Must be called after draw().
+    Must be called by original plotter instance.
+    '''
+    if not self._already_drawn:
+      raise RuntimeError('Plotter.legend() can be called only after ' \
+                         'Plotter.draw() was called.')
+    if Plotter._IS_MPL:
+      self.axes.legend(handles=self._handles_list, labels=self._labels_list,
+                       **mpl_kwargs)
+    else:
+      # Place all legends centrally underneath the plots
+      self.graph_obj.update_layout(legend_traceorder='grouped',
+                                   legend_x=0.5, legend_y=-0.3,
+                                   legend_xanchor='center',
+                                   legend_yanchor='top',
+                                   legend_orientation='h')
+
+  def updateLegendText(self, legend_item: str, new_text, append=False):
+    '''
+    Can be called before and after calling draw(), but before legend().
+    To update legend items associated with yaxis 1, function needs to be
+    called by original plotter instance.
+    To update legend items associated with yaxis 2, function needs to be
+    called by child plotter instance.
+    Input argument legend_item is the text of the legend entry.
+    '''
+    old_text = legend_item if append else ''
+    new_label = old_text + new_text
+    error_text = 'Legend entry \'{}\' does not exist. Check for ' \
+                 'typos and make sure you used the right plotter ' \
+                 'instance'.format(legend_item)
+    if self._already_drawn:
+      if Plotter._IS_MPL:
+        if not legend_item in self._labels_list:
+          raise ValueError(error_text)
+        label_list = self._labels_list
+      else:
+        if legend_item not in self._tracenames:
+          raise ValueError(error_text)
+        label_list = self._tracenames
+        self.graph_obj.update_traces(name = new_label,
+                                     selector = dict(name=legend_item))
+      idx = label_list.index(legend_item)
+      label_list[idx] = new_label
+
+    else:
+      label = 'label' if Plotter._IS_MPL else 'name'
+      trace_found = False
+      for trace in self._deferred_traces:
+        if trace._kwargs[label] == legend_item:
+          trace._kwargs[label] = new_label
+          trace_found = True
+          break
+      if not trace_found:
+        raise ValueError(error_text)
+
+  def addLegendItem(self, **mpl_kwargs):
+    '''
+    Call before draw().
+    Call only with original plotter instance, not child plotter.
+    Adds a legend entry without adding a trace to the plot.
+    Can be used when traces are complex and automatic legend entries not
+    sufficient.
+    Required argument item_type can be one of 'marker', 'line'.
+    Valid kwargs are matplotlib.lines.Line2D properties.
+    Items will appear in a separate legend group together with h/v lines.
+
+    Example:
+    To add a marker:
+    plotter.addLegendItem(color='black', marker='o',
+                          linestyle='None', markeredgecolor='black',
+                          label='text')
+    To add a line:
+    plotter.addLegendItem(color='black', linestyle='solid', label='text')
+    '''
+    if self._already_drawn:
+      raise RuntimeError('Plotter.addLegendItem() must be called before ' \
+                         'Plotter.draw().')
+    if Plotter._IS_MPL:
+      line = Line2D([], [], **mpl_kwargs)
+      self._extra_handles.append(line)
+      self._extra_labels.append(line.get_label())
+    else:
+      # There is no clean way to add an item to the legend without drawing a
+      # trace.
+      # We have to draw a trace with the desired properties outside the visible
+      # area to get the item into the legend.
+      plotly_kwargs = self._convertKWArgs(TraceType.Scatter,
+                                          legendgroup='extra', **mpl_kwargs)
+      dt = self.DeferredTrace(go.Scatter, self._draw_count,
+                              x=[float('nan')], y1=[-5],
+                              zorder=2, **plotly_kwargs)
+      self._deferred_traces.append(dt)
+      self._draw_count += 1
+
+  def draw(self):
+    '''
+    Call with original plotter instance.
+    '''
+    if self._already_drawn:
+      return
+    self._already_drawn = True
+    deferred_traces = self._deferred_traces
+    if hasattr(self, '_child_plotter'):
+      self._child_plotter._already_drawn = True
+      deferred_traces += self._child_plotter._deferred_traces
+    deferred_traces.sort(key=attrgetter('_zorder', '_draw_count'))
+    for trace in deferred_traces:
+      if Plotter._IS_MPL:
+        # axes.plot() doesn't accept x, y as keyword args
+        trace._draw_fn(trace._x, trace._y1, zorder=trace._zorder,
+                       **trace._kwargs)
+      else:
+        self.graph_obj.add_trace(trace._draw_fn(x=trace._x, y=trace._y1,
+                                                **trace._kwargs))
+    # Prepare handles and labels for legend
+    if Plotter._IS_MPL:
+      handles, labels = self.axes.get_legend_handles_labels()
+      if hasattr(self, '_child_plotter'):
+        y2_handles, y2_labels = \
+        self._child_plotter.axes.get_legend_handles_labels()
+        y2_extra_handles = self._child_plotter._extra_handles
+        y2_extra_labels = self._child_plotter._extra_labels
+      else:
+        y2_handles, y2_labels, y2_extra_handles, y2_extra_labels = \
+        [], [], [], []
+      self._handles_list += handles + y2_handles + self._extra_handles + \
+      y2_extra_handles
+      self._labels_list += labels + y2_labels + self._extra_labels + \
+      y2_extra_labels
+
+  def _convertKWArgs(self, tracetype, legendgroup=None, **mpl_kwargs):
+    all_plotly_kwargs = {}
+    modes = []
+    for key, val in mpl_kwargs.items():
+      cap = key.capitalize()
+      #Functions are attributes of the object plotter (class)
+      try:
+        fn = getattr(self, '_convert' + cap)
+      except AttributeError:
+        warnings.warn('Conversion of MPL keyword argument \'{}\' not ' \
+                      'implemented yet.'.format(key))
+        plotly_kwarg = None
+      else:
+        plotly_kwarg = fn(val, tracetype)
+      if plotly_kwarg is not None:
+        all_plotly_kwargs.update(plotly_kwarg)
+      if key == 'marker' and val not in [None, 'None', ' ', '']:
+        modes.append('markers')
+      elif key in ['linestyle', 'linewidth'] and val not in \
+       [None, 'None', ' ', '']:
+        modes.append('lines')
+
+    if tracetype is TraceType.Line and len(modes):
+      all_plotly_kwargs.update({'mode': '+'.join(modes)})
+    # In this case we use the kwargs not for add_trace(), but for add_shape().
+    # 'yaxis', 'legendgroup', 'showlegend' are kwargs that do not apply to
+    #  add_shape().
+    if tracetype is not TraceType.HVline:
+      all_plotly_kwargs['yaxis'] = self._yaxis_id
+      if 'name' not in all_plotly_kwargs:
+        all_plotly_kwargs['showlegend'] = False
+      else:
+        self._tracenames.append(all_plotly_kwargs['name'])
+        # Legend entries are grouped according to legend group
+        # Within each group, entries appear in order of plotting
+        # Group order depends on order of first entry to a group
+        # 'Extra' legend group for legend items added with addLegendItem()
+        #  and h/v lines
+        if legendgroup is not None:
+          all_plotly_kwargs['legendgroup'] = legendgroup
+        elif self._yaxis_id == self.Y2_AXIS_ID:
+          all_plotly_kwargs['legendgroup'] = self.Y2_AXIS_ID
+        else:
+          all_plotly_kwargs['legendgroup'] = self.Y1_AXIS_ID
+    return all_plotly_kwargs
+
+  def _convertAlign(self, alignment, tracetype): # TraceType.Bar
+    # only passed if align=edge, default is align=center
+    return None
+
+  def _convertAlpha(self, alpha_val, tracetype): # TraceType.Line
+    plotly_key = 'opacity'
+    return {plotly_key: alpha_val}
+
+  def _convertBbox_to_anchor(self, tup, tracetype): # Legend
+    return None
+
+  def _convertC(self, color, tracetype):
+    return self._convertColor(color, tracetype)
+
+  def _convertColor(self, color, tracetype): # TraceType.Bar, TraceType.Line
+    if hasattr(color, '__iter__') and not isinstance(color, str):
+      RGB = np.round(np.array(color[:3])*255)
+      RGB = RGB.astype(np.int)
+      alpha = color[3] if len(color) == 4 else 1 # 1 is full opaque color
+      color = 'rgba({}, {}, {}, {})'.format(RGB[0], RGB[1], RGB[2], alpha)
+    if tracetype in [TraceType.Line, TraceType.Step, TraceType.HVline]:
+      plotly_key = 'line_color'
+    elif tracetype in [TraceType.Bar, TraceType.Scatter]:
+      plotly_key = 'marker_color'
+    return {plotly_key: color}
+
+  def _convertEdgecolor(self, color, tracetype): # TraceType.Bar
+    plotly_key = 'marker_line_color'
+    return {plotly_key: color}
+
+  def _convertEdgecolors(self, color, tracetype): # TraceType.Scatter
+    plotly_dict = {'marker_line_color': color, 'marker_line_width': 2}
+    return plotly_dict
+
+  def _convertFancybox(self, boolean, tracetype): # Legend
+    '''
+    MPL: border is drawn around legend by default.
+    Fancybox=True enables round edges of box.
+    In plotly, box can be enabled with legend_borderwidth, legend_color.
+    Round edges are not possible.
+    '''
+    return None
+
+  def _convertHandles(self, handles, tracetype): # Legend
+    return None
+
+  def _convertLabel(self, trace_name, tracetype): #TraceType.Bar,TraceType.Line
+    plotly_dict = {'name': trace_name} if trace_name is not None else None
+    return plotly_dict
+
+  def _convertLabels(self, labels, tracetype): # Legend
+    return None
+
+  def _convertLinewidth(self, float_number, tracetype): # TraceType.Line
+    plotly_key = 'line_width'
+    return {plotly_key: float_number}
+
+  def _convertLinestyle(self, style, tracetype): # TraceType.Line
+    if style not in ['None', '', ' ']:
+      plotly_key = 'line_dash'
+      vals = {'-': 'solid',
+              '--': 'dash',
+              '-.': 'dashdot',
+              ':': 'dot',
+              'solid': 'solid',
+              'dashed': 'dash',
+              'dashdot': 'dashdot',
+              'dotted': 'dot'}
+      plotly_val = vals[style]
+      return {plotly_key: plotly_val}
+    else:
+      return None
+
+  def _convertLoc(self, loc, tracetype): # Legend
+    # Exact conversion of mpl legend configuration doesn't look good in plotly.
+    return None
+
+  def _convertMarker(self, style, tracetype): # TraceType.Line
+    if style is None:
+      return None
+    plotly_key = 'marker_symbol'
+    vals = {'o':'circle', '+':'cross-thin'}
+    # if style in vals, return value, if not, return 'circle' as default
+    plotly_val = vals.get(style, 'circle')
+    return {plotly_key: plotly_val}
+
+  def _convertMarkerfacecolor(self, color, tracetype): # TraceType.Line
+    plotly_key = 'marker_color'
+    return {plotly_key: color}
+
+  def _convertMarkeredgecolor(self, color, tracetype): # TraceType.Line
+    # In plotly, we need to explicitly pass a value for border line width
+    # Otherwise, the borders are not drawn at all
+    # In MPL, it is sufficient to just pass a color
+    plotly_dict = {'marker_line_color': color, 'marker_line_width': 2}
+    return plotly_dict
+
+  def _convertMarkersize(self, float_number, tracetype): # TraceType.Line
+    plotly_key = 'marker_size'
+    return {plotly_key: float_number}
+
+  def _convertNcol(self, number, tracetype):
+    # Not possible to define number of columns in Plotly
+    # For multiple columns, legend orientation is set to horizontal (see legend())
+    return None
+
+  def _convertProp(self, dict, tracetype): # Legend
+    # Controls font settings.
+    # Not implemented yet for plotly.
+   # if dict['size']:
+    #  pass
+    return None
+
+  def _convertS(self, size, tracetype): # TraceType.Scatter
+    plotly_key = 'marker_size'
+    return {plotly_key: size}
+
+  def _convertWhere(self, where, tracetype): # TraceType.Step
+    '''
+    Defines where, in relation to x, steps are placed in MPL
+    Options to place steps not available in Plotly
+    '''
+    if where in ['pre', 'post']:
+      warnings.warn('\'where={}\' was passed to addTrace(TraceType.Step). '
+                    'This option is derived from plt.step(), but is not '
+                    'available in Plotly. Steps will be drawn halfway between '
+                    'x-positions (\'where=\'mid\').'.format(where))
+    return None
+
+  def _convertWidth(self, float_number, tracetype): # TraceType.Line
+    plotly_key = 'width'
+    return {plotly_key: float_number}
+
+  def setGraphTitle(self, title):
+    if Plotter._IS_MPL:
+      self.axes.set_title(title)
+    else:
+      self.graph_obj.update_layout(title=dict(text=title,
+                                              xref='paper',
+                                              x=0.5,
+                                              xanchor='center'))
+
+  def setXLim(self, xmin=None, xmax=None):
+    '''
+    Sets limits of x-axis.
+    Keywords arguments: xmin (lower limit as number or None)
+                        xmax (upper limit as number or None)
+    If None is passed to either xmin or xmax, this limit is autoscaled based on
+    input data.
+    Restrictions for this case:
+    1. The other value must be 0 (and will be set to zero independent of
+       passed values). Plotly causes this limitation: The only function
+       available for axis scaling are
+       - autorange():   If True, upper AND lower limit depend on input data
+       - range():       Takes list with two values for upper and lower limit as
+                        argument, values cannot be None
+       - rangemode():   Can be 'normal' (limits depend on input data),
+                               'tozero' (upper limit is 0, lower depends on data)
+                               'nonnegative' (lower limit is 0, upper depends on
+                                              input data)
+    2. draw() needs to be called BEFORE setXLim() (traces need to
+       be plotted before setting the axes limits). Otherwise the limit set to
+       None cannot be adjusted to input data and will be set to 1 by default.
+    '''
+    if (xmax is None and xmin != 0) or (xmin is None and xmax != 0):
+      raise ValueError('Wrong values passed for setXLim(): if None is ' \
+                       'passed to either xmin or xmax, the other limit must ' \
+                       'be set to 0.')
+    if Plotter._IS_MPL:
+      self.axes.set_xlim(left=xmin, right=xmax)
+    else:
+      if xmax is None and xmin is None:
+        pass
+      elif xmax is None:
+        self.graph_obj.update_layout(xaxis=dict(rangemode='nonnegative'))
+      elif xmin is None:
+        self.graph_obj.update_layout(xaxis=dict(rangemode='tozero'))
+      else:
+        self.graph_obj.update_layout(xaxis=dict(range=[xmin, xmax]))
+
+  def setYLim(self, ymin=None, ymax=None):
+    '''
+    Sets limits of y-axis.
+    If more than one y-axis exists, the function needs to be called by the
+    plotter instance representing the desired y-axis.
+    Keywords arguments: ymin (lower limit as number or None)
+                        ymax (upper limit as number or None)
+    If None is passed to either ymin or ymax, this limit is autoscaled based on
+    input data.
+    Restrictions for this case:
+    1. The other value must be 0 (and will be set to zero independent of
+       passed values). Plotly causes this limitation: The only function
+       available for axis scaling are
+       - autorange():   If True, upper AND lower limit depend on input data
+       - range():       Takes list with two values for upper and lower limit as
+                        argument, values cannot be None
+       - rangemode():   Can be 'normal' (limits depend on input data),
+                               'tozero' (upper limit is 0, lower depends on data)
+                               'nonnegative' (lower limit is 0, upper depends on
+                                              input data)
+    2. draw() needs to be called BEFORE setYLim() (traces need to
+       be plotted before setting the axes limits). Otherwise the limit set to
+       None cannot be adjusted to input data and will be set to 1 by default.
+    '''
+    if (ymax is None and ymin != 0) or (ymin is None and ymax != 0):
+      raise ValueError('Wrong values passed for setYLim(): if None is ' \
+                       'passed to either ymin or ymax, the other limit must ' \
+                       'be set to 0.')
+    if Plotter._IS_MPL:
+      self.axes.set_ylim(bottom=ymin, top=ymax)
+    else:
+      axis = 'yaxis2' if self._yaxis_id == self.Y2_AXIS_ID else 'yaxis'
+      if ymax is None and ymin is None:
+        pass
+      elif ymax is None:
+        self.graph_obj.update_layout({axis: {'rangemode': 'nonnegative'}})
+      elif ymin is None:
+        self.graph_obj.update_layout({axis: {'rangemode': 'tozero'}})
+      else:
+        self.graph_obj.update_layout({axis: {'range': [ymin, ymax]}})
+
+  def setXLabel(self, x_label):
+    if Plotter._IS_MPL:
+      self.axes.set_xlabel(x_label)
+    else:
+      self.graph_obj.update_xaxes(title_text=x_label)
+
+  def setYLabel(self, y_label):
+    if Plotter._IS_MPL:
+      self.axes.set_ylabel(y_label)
+    else:
+      axis = 'yaxis2' if self._yaxis_id == self.Y2_AXIS_ID else 'yaxis'
+      self.graph_obj.update_layout({axis: {'title_text': y_label}})
+
+  def setXTickValues(self, tickvalues):
+    if Plotter._IS_MPL:
+      self.axes.set_xticks(tickvalues)
+    else:
+      self.graph_obj.update_xaxes(tickmode='array', tickvals=tickvalues)
+
+  def setXTickLabels(self, ticklabels):
+    if Plotter._IS_MPL:
+      self.axes.set_xticklabels(ticklabels)
+    else:
+      self.graph_obj.update_xaxes(ticktext=ticklabels)
+
+  def setYTickSuffix(self, ticksuffix):
+    if Plotter._IS_MPL:
+      # FuncFormatter takes tick name and position as arguments.
+      # Position not used in this lambda function.
+      # Unused variables are named with underscore by convention.
+      self.axes.yaxis.set_major_formatter(
+                         FuncFormatter(
+                             lambda y, _: ('{}'+ticksuffix).format(int(y))))
+    else:
+      axis = 'yaxis2' if self._yaxis_id == self.Y2_AXIS_ID else 'yaxis'
+      self.graph_obj.update_layout({axis: {'ticksuffix': ticksuffix}})
+
+  def setYTickLabelcolor(self, labelcolor):
+    if Plotter._IS_MPL:
+      self.axes.tick_params(axis='y', color=labelcolor)
+    else:
+      axis = 'yaxis2' if self._yaxis_id == self.Y2_AXIS_ID else 'yaxis'
+      self.graph_obj.update_layout({axis: {'tickcolor': labelcolor}})
 
 class ExpType(): # Don't create as enum as we will compare with real integers
   LightIntensity = 2
