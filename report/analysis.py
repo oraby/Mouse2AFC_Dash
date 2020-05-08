@@ -587,8 +587,8 @@ class ExpType(): # Don't create as enum as we will compare with real integers
 #analysis_for = ExpType.LightIntensity if "lightchasing" in DF_FILE.lower() \
 #                                      else ExpType.RDK
 analysis_for = ExpType.RDK
-SCALE_X = None
-SCALE_Y = None
+SCALE_X = 1
+SCALE_Y = 1
 SAVE_FIG_SIZE = None
 FORMATS = None
 DPI = None
@@ -606,7 +606,7 @@ def setMatplotlibParams(silent=False):
     if attr_name not in original_rc:
       original_rc[attr_name] = mpl.rcParams[attr_name]
 
-  SAVE_FIG_SIZE = (6.4, 4.8) # original mpl.rcParams['figure.figsize'] is [6.4, 4.8]
+  SAVE_FIG_SIZE = (6.4, 4.8) # original mpl.rcParams['figure.figsize'] is [6.0, 4.0]
   SCALE_X = SAVE_FIG_SIZE[0]/(original_rc['figure.figsize'][0])
   SCALE_Y = SAVE_FIG_SIZE[1]/(original_rc['figure.figsize'][1])
   for attr_name, attr_val in original_rc.items():
@@ -846,10 +846,9 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
       return 0 if num_difficulties == 1 else num_difficulties/3
 
     # TODO: find good scale for both
-    if Plotter._IS_MPL:
-      s=max(20*SCALE_X, min(50*SCALE_X, SCALE_X*7500/num_sessions))
-    else:
-      s=8
+    s=max(20*SCALE_X, min(50*SCALE_X, SCALE_X*7500/num_sessions))
+    if Plotter._IS_MPL is False:
+      s=s/5
 
     for i in range(len(x_data)):
       plotter.addTrace('scatter', [x_data[i]], [performance[i]*100],

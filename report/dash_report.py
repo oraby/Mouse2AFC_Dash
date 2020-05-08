@@ -14,7 +14,6 @@ import analysis
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
 
 analysis.Plotter.setPlotType(is_mpl=False)
-analysis.setMatplotlibParams(silent=True)
 
 DATA_FILE=r"C:\Users\lisak\Documents\MA_MindBrain\LabRotations\LarkumLab\Data\all_animals_2020_03_31.pkl"
 #df = mat_reader.loadFiles(DATA_FILE)
