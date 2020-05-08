@@ -1145,8 +1145,7 @@ def initialTraining(df, animal_name, max_num_sessions):
                                                      animal_name), dpi=400)
 
 
-def trialRate(df, axes):
-  axes.set_title("Trial Rate - {}".format(" ".join(df.Name.unique())))
+def trialRate(df, plotter):
   groups = df.groupby([df.Date, df.SessionNum])
   if not len(groups):
     return
@@ -1196,7 +1195,8 @@ def trialRate(df, axes):
                                                                else None
     done_once = True
     x_data_min = x_data / 60 # Convert to minutes
-    axes.plot(x_data_min, session_df.TrialNumber, color="gray", label=label)
+    plotter.addLine(x_data_min, session_df.TrialNumber, color="gray",
+                    label=label, linestyle='solid')
     incl_sessions.append(pd.DataFrame({"Time":x_data,
                                        "TrialNumber":session_df.TrialNumber}))
 
@@ -1228,28 +1228,30 @@ def trialRate(df, axes):
       #       "Optimized Cs:", optimized_Cs)
       y_data = fitFunc(x_data, *optimized_Cs)
       x_data_min = x_data / 60
-      axes.plot(x_data_min, y_data, color="k", label="Sessions Average",
-                linewidth=3*SCALE_X, alpha=0.8)
+      plotter.addLine(x_data_min, y_data, color="black",
+                      label="Sessions Average", linewidth=3*SCALE_X,
+                      alpha=0.8)
 
-    axes.axvline(median_session_time/60, linestyle="dashed", color='k',
-                 label="Median Session Time", alpha=0.8,
-                 zorder=len(max_sessions_time)) # Draw below average line
-    axes.axhline(median_session_trials_num, linestyle="dashed", color='k',
-                 label="Median Session Trials Count", alpha=0.8,
-                 zorder=len(max_sessions_time))
+    plotter.createVLine(median_session_time/60, linestyle="dashed",
+                        color='black', label="Median Session Time", alpha=0.8,
+                        zorder=len(max_sessions_time)) #Draw below average line
+    plotter.createHLine(median_session_trials_num, linestyle="dashed",
+                        color='black', label="Median Session Trials Count",
+                        alpha=0.8, zorder=len(max_sessions_time))
 
-  axes.xaxis.set_major_formatter(FuncFormatter(lambda x, _:'{}'.format(int(x))))
   #axes.yaxis.tick_right()
   #axes.yaxis.set_label_position("right")
-  axes.set_xlabel("Time (Minutes)")
-  axes.set_ylabel("Trial Number")
-  axes.set_xlim(xmin=0)
-  axes.set_ylim(ymin=0)
+  plotter.draw()
+  plotter.setGraphTitle("Trial Rate - {}".format(" ".join(df.Name.unique())))
+  plotter.setXLabel("Time (Minutes)")
+  plotter.setYLabel("Trial Number")
+  plotter.setXLim(xmin=0)
+  plotter.setYLim(ymin=0)
 
   if len(groups) > 1:
     pass # TODO: Implement this
     #groups.aggregate
-    axes.legend(loc="upper left")
+    plotter.legend(loc="upper left")
 
 
 def interceptSlope(df):
