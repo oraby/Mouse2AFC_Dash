@@ -14,6 +14,525 @@ import numpy as np
 from scipy.optimize import curve_fit
 import pandas as pd
 from enum import Enum, auto, unique
+import plotly.graph_objects as go
+
+class Plotter:
+  # These keyword arguments can be used when calling a Plotter function
+  # Lists should be kept up-to-date: used by _handleKWArgs
+  MPL_KWARGS = ['linestyle', 'marker', 'markeredgecolor', 'markerfacecolor',
+                'markersize', 'label', 'linewidth', 'color', 'width', 'align',
+                'zorder', 'edgecolor', 'handles', 'labels', 'loc',
+                'bbox_to_anchor', 'ncol', 'fancybox', 'prop', 'alpha',
+                'edgecolors', 's', 'where', 'c']
+  PLOTLY_KWARGS = ['showlegend']
+
+  # These are default style settings to make the plotly figs look like mpl figs
+  PLOTLY_LAYOUT = dict(plot_bgcolor='white',
+                       xaxis=dict(showline=True,
+                                  linewidth=1,
+                                  linecolor='black',
+                                  mirror=True,
+                                  ticks='outside'),
+                      yaxis=dict(showline=True,
+                                  linewidth=1,
+                                  linecolor='black',
+                                  mirror=True,
+                                  ticks='outside'))
+
+  @staticmethod # Function of the class, not of the instance of a class.
+  def setPlotType(is_mpl):
+    Plotter._IS_MPL = is_mpl
+
+  def __init__(self, graph_obj=None, second_y=False):
+   if Plotter._IS_MPL:
+      self.axes = graph_obj if graph_obj is not None else plt.axes()
+      self._second_y_axis = False
+      self._handles1 = []
+      self._labels1 = []
+      self._handles2 = []
+      self._labels2 = []
+      self._handles3 = []
+      self._labels3 = []
+
+   else:
+      self.graphly = graph_obj if graph_obj is not None else go.Figure()
+      self.graphly.update_layout(Plotter.PLOTLY_LAYOUT)
+      self._second_y_axis = second_y
+
+      if second_y:
+        self.graphly.update_yaxes(ticks='outside')
+
+      self._traceid_legend1 = 0
+      self._id_to_name1 = {}
+      self._traceid_legend2 = 0
+      self._id_to_name2 = {}
+
+  def addTrace(self, tracetype, x, y, second_y=None, **kwargs):
+    tracetypes = ['bar', 'scatter', 'line', 'step']
+    if tracetype not in tracetypes:
+      return
+
+    mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
+
+    if Plotter._IS_MPL:
+      conv_kwargs = self._convertKWArgs(tracetype, **plotly_kwargs)
+      mpl_kwargs.update(conv_kwargs)
+
+      if second_y:
+        axis = self.axes2
+      else:
+        axis = self.axes
+
+      if tracetype == 'scatter':
+        axis.scatter(x, y, **mpl_kwargs)
+
+      elif tracetype == 'line':
+        axis.plot(x, y, **mpl_kwargs)
+
+      elif tracetype == 'bar':
+        axis.bar(x, y, **mpl_kwargs)
+
+      elif tracetype == 'step':
+        axis.step(x, y, **mpl_kwargs)
+
+    else:
+      conv_kwargs = self._convertKWArgs(tracetype, **mpl_kwargs)
+      plotly_kwargs.update(conv_kwargs)
+
+      if ('showlegend', False) not in plotly_kwargs.items():
+        if second_y:
+          self._id_to_name2[self._traceid_legend2] = plotly_kwargs['name']
+          self._traceid_legend2 += 1
+        else:
+          self._id_to_name1[self._traceid_legend1] = plotly_kwargs['name']
+          self._traceid_legend1 += 1
+
+      if tracetype == 'scatter':
+        self.graphly.add_trace(go.Scatter(x=x, y=y, mode='markers', **plotly_kwargs),
+                               secondary_y=second_y)
+
+      elif tracetype == 'line':
+        self.graphly.add_trace(go.Scatter(x=x, y=y, mode='lines', **plotly_kwargs),
+                               secondary_y=second_y)
+
+      elif tracetype == 'bar':
+        if 'align' in mpl_kwargs:
+          half_bin = round((x[-1] - x[-2])*0.5, 1)
+          x = x+half_bin # works only if x is numpy array
+        self.graphly.add_trace(go.Bar(x=x, y=y, **plotly_kwargs),
+                               secondary_y=second_y)
+
+      elif tracetype == 'step':
+        self.graphly.add_trace(go.Scatter(x=x, y=y, mode='lines', line_shape='hv',
+                                          **plotly_kwargs),
+                               secondary_y=second_y)
+
+  def fillBetween(self, x, y1, y2, color=None, alpha=None, second_y=None):
+    if Plotter._IS_MPL:
+      if second_y:
+        axis = self.axes2
+      else:
+        axis = self.axes
+
+      axis.fill_between(x, y1, y2, color=color, alpha=alpha)
+
+    else:
+      col = mpl.colors.to_rgba(color)
+      fillcolor = 'rgba({}, {}, {}, {})'.format(col[0], col[1], col[2], alpha)
+      # Draw 100% transparent line (upper border) as guide
+      self.graphly.add_trace(go.Scatter(x=x, y=y1, line_color='rgba(0,0,0,0)',
+                                        showlegend=False),
+                             secondary_y=second_y)
+      # Fill from lower border to upper (tonexty means from this to previously drawn line)
+      self.graphly.add_trace(go.Scatter(x=x, y=y2, mode='none', fill='tonexty',
+                                        fillcolor=fillcolor, showlegend=False),
+                             secondary_y=second_y)
+
+  def createVLine(self, x, **kwargs):
+    mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
+
+    if Plotter._IS_MPL:
+      conv_kwargs = self._convertKWArgs('line', **plotly_kwargs)
+      mpl_kwargs.update(conv_kwargs)
+
+      self.axes.axvline(x=x, **mpl_kwargs)
+
+    else:
+      conv_kwargs = self._convertKWArgs('line', **mpl_kwargs)
+      plotly_kwargs.update(conv_kwargs)
+
+      self.graphly.add_shape(type='line', layer='below',
+                             yref='paper', y0=0, y1=1,
+                             xref='x', x0=x, x1=x,
+                             **plotly_kwargs)
+
+  def createHLine(self, y, **kwargs):
+    mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
+
+    if Plotter._IS_MPL:
+      conv_kwargs = self._convertKWArgs('line', **plotly_kwargs)
+      mpl_kwargs.update(conv_kwargs)
+      self.axes.axhline(y=y, **mpl_kwargs)
+
+    else:
+      conv_kwargs = self._convertKWArgs('line', **mpl_kwargs)
+      plotly_kwargs.update(conv_kwargs)
+
+      if self._second_y_axis is False:
+        x1=1
+      else:
+        x1=0.94
+
+      self.graphly.add_shape(type='line', layer='below',
+                             xref='paper', x0=0, x1=x1,
+                             yref='y', y0=y, y1=y,
+                             **plotly_kwargs)
+
+  def legend(self, **kwargs):
+    mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
+
+    if Plotter._IS_MPL:
+      conv_kwargs = self._convertKWArgs('legend', **plotly_kwargs)
+      mpl_kwargs.update(conv_kwargs)
+
+      if not len(self._handles1):
+        self._handles1, self._labels1 = self.axes.get_legend_handles_labels()
+
+      if self._second_y_axis:
+        if not len(self._handles2):
+          self._handles2, self._labels2 = self.axes2.get_legend_handles_labels()
+
+      self.axes.legend(handles=self._handles1 + self._handles2 + self._handles3,
+                       labels=self._labels1 + self._labels2 + self._labels3,
+                       **mpl_kwargs)
+
+    else:
+      conv_kwargs = self._convertKWArgs('legend', **mpl_kwargs)
+      if 'new_x' in conv_kwargs:
+        x = conv_kwargs.pop('new_x')
+        y = conv_kwargs.pop('new_y')
+        conv_kwargs['legend_x'] = x
+        conv_kwargs['legend_y'] = y
+
+      plotly_kwargs.update(conv_kwargs)
+      self.graphly.update_layout(legend_traceorder='normal', **plotly_kwargs)
+
+  def updateLegendText(self, new_text, legend_item, second_y=None, append=False):
+    '''
+    Should be done after all plotting is done.
+    legend_item is position number, separate for axes!
+    Added legend items should not be updated.
+    '''
+    if Plotter._IS_MPL:
+      if second_y:
+        if not len(self._handles2):
+          self._handles2, self._labels2 = self.axes2.get_legend_handles_labels()
+
+        if append:
+          self._labels2[legend_item] = self._labels2[legend_item] + new_text
+        else:
+          self._labels2[legend_item] = new_text
+
+      else:
+        if not len(self._handles1):
+          self._handles1, self._labels1 = self.axes.get_legend_handles_labels()
+          self._handles_labels1 = True
+
+        if append:
+          self._labels1[legend_item] = self._labels1[legend_item] + new_text
+        else:
+          self._labels1[legend_item] = new_text
+
+    else:
+      if second_y:
+        trace_name = self._id_to_name2[legend_item]
+      else:
+        trace_name = self._id_to_name1[legend_item]
+
+      if append:
+        new_name = trace_name + new_text
+      else:
+        new_name = new_text
+
+      self.graphly.update_traces(name = new_name,
+                                 selector = dict(name=trace_name))
+
+  def addLegendItem(self, **kwargs):
+    '''
+    Items will be added at the very end of the legend
+    Function should be called after all plotting is done
+    '''
+    if Plotter._IS_MPL:
+      line = Line2D([], [], **kwargs)
+      self._handles3.append(line)
+      self._labels3.append(line.get_label())
+
+    else:
+      self.addTrace('scatter', x=[0], y=[-5], second_y=True, **kwargs)
+
+  def _handleKWArgs(self, **kwargs):
+    mpl_kwargs = {}
+    plotly_kwargs = {}
+
+    for key, val in kwargs.items():
+      if key in Plotter.MPL_KWARGS:
+        mpl_kwargs[key] = val
+      elif key in Plotter.PLOTLY_KWARGS:
+        plotly_kwargs[key] = val
+      else:
+        print('Kwarg "{}" not yet implemented for Plotter.addLine().'.format(
+            key))
+    return mpl_kwargs, plotly_kwargs
+
+  def _convertKWArgs(self, objecttype, **kwargs):
+    conv_kwargs = {}
+    for key, val in kwargs.items():
+      cap = key.capitalize()
+      fn = getattr(self, "_convert" + cap) #Functions are attributes of the object plotter (class)
+      conv_item = fn(val, objecttype)
+      if conv_item is not None:
+        conv_kwargs.update(conv_item)
+
+    return conv_kwargs
+
+  def _convertAlign(self, alignment, objecttype): # objecttype = Bar
+    # only passed if align=edge, default is align=center
+    return None
+
+  def _convertAlpha(self, alpha_val, objecttype): # objecttype = Line
+    return {'opacity': alpha_val}
+
+  def _convertBbox_to_anchor(self, twople, objecttype): # objecttype = Legend
+    if len(twople) != 2:
+      print('_convertBbox_to_anchor only accepts 2-tuples.')
+      twople = twople[:2]
+
+    plotly = dict(new_x=twople[0], new_y=twople[1])
+    return plotly
+
+  def _convertC(self, color, objecttype):
+    return self._convertColor(color, objecttype)
+
+  def _convertColor(self, color, objecttype): # objecttype = Bar, Line
+    if type(color) is tuple:
+      RGB = []
+      for i in color[:3]:
+        RGB.append(i*256)
+      color = 'rgba({}, {}, {}, {})'.format(RGB[0], RGB[1], RGB[2], color[3])
+
+    if objecttype in ['line', 'step']:
+      plotly_key = 'line_color'
+    elif objecttype in ['bar', 'scatter']:
+      plotly_key = 'marker_color'
+
+    return {plotly_key: color}
+
+  def _convertEdgecolor(self, color, objecttype): # objecttype = Bar
+    plotly_key = 'marker_line_color'
+    return {plotly_key: color}
+
+  def _convertEdgecolors(self, color, objecttype): # objecttype = Scatter
+    return {'marker_line_color': color, 'marker_line_width': 2}
+
+  def _convertFancybox(self, boolean, objecttype): # objecttype = Legend
+    # MPL: border is drawn around legend by default.
+    # Fancybox = True enables round edges of box.
+    # In plotly, box would have to be enabled with legend_borderwidth, legend_color.
+    # Round edges are not possible.
+    return None
+
+  def _convertHandles(self, handles, objecttype): # objecttype = Legend
+    return None
+
+  def _convertLabel(self, trace_name, objecttype): # objecttype = Bar, Line
+    plotly_key = 'name'
+    return {plotly_key: trace_name}
+
+  def _convertLabels(self, labels, objecttype): # objecttype = Legend
+    return None
+
+  def _convertLinewidth(self, float_number, objecttype): # objecttype = Line
+    plotly_key = 'line_width'
+    return {plotly_key: float_number}
+
+  def _convertLinestyle(self, style, objecttype): # objecttype = Line
+    if style not in ['None', '', ' ']:
+      plotly_key = 'line_dash'
+      vals = {'-': 'solid',
+              '--': 'dash',
+              '-.': 'dashdot',
+              ':': 'dot',
+              'solid': 'solid',
+              'dashed': 'dash',
+              'dashdot': 'dashdot',
+              'dotted': 'dot'}
+      plotly_val = vals[style]
+      return {plotly_key: plotly_val}
+
+    else:
+      return None
+
+  def _convertLoc(self, loc, objecttype): # objecttype = Legend
+    '''
+    loc defines
+    a) without bbox_to_anchor: both position in plot AND corner/edge of legend
+    b) with bbox_to_anchor 2-tuple: corner/edge of legend. x/y position in plot
+       defined by bbox
+    c) with bbox_to_anchor 4-tuple: corner/edge of legend AND position in box
+       defined by bbox (x, y, width, height)(box originates with lower left corner
+       in x/y position)
+    '''
+    conv_dict = {'best': [1, 1,'auto', 'auto'], # put it in upper right corner
+                 'upper right': [1, 1, 'right', 'top'],
+                 'upper left': [0, 1, 'left', 'top'],
+                 'lower left': [0, 0, 'left', 'bottom'],
+                 'lower right': [1, 0, 'right', 'bottom'],
+                 'right': [1, 0.5, 'right', 'middle'],
+                 'center left': [0, 0.5, 'left', 'middle'],
+                 'center right': [1, 0.5, 'right', 'middle'],
+                 'lower center': [0.5, 0, 'center', 'bottom'],
+                 'upper center': [0.5, 1, 'center', 'top'],
+                 'center': [0.5, 0.5, 'center', 'middle']}
+
+    vals = conv_dict[loc]
+    plotly = dict(legend_x=vals[0], legend_y=vals[1],
+                  legend_xanchor=vals[2], legend_yanchor=vals[3])
+
+    return plotly
+
+  def _convertMarker(self, style, objecttype): # objecttype = Line
+    if style is None:
+      return None
+
+    plotly_key = 'marker_symbol'
+    vals = {'o':'circle', '+':'cross-thin'}
+    plotly_val = vals.get(style, 'circle') # if style in vals, return value, if not, return 'circle' as default
+    return {plotly_key: plotly_val}
+
+  def _convertMarkerfacecolor(self, color, objecttype): # objecttype = Line
+    return {'marker_color': color}
+
+  def _convertMarkeredgecolor(self, color, objecttype): # objecttype = Line
+    return {'marker_line_color': color, 'marker_line_width': 2}
+
+  def _convertMarkersize(self, float_number, objecttype): # objecttype = Line
+    plotly_key = 'marker_size'
+    return {plotly_key: float_number}
+
+  def _convertNcol(self, number, objecttype):
+    # multiple legend columns not possible in plotly
+    # change legend_orientation to h (horizontal?)
+    return {'legend_orientation' : 'h'}
+
+  def _convertProp(self, dict, objecttype): # objecttype = Legend
+    # Controls font settings. Size is relative.
+   # if dict['size']:
+    #  pass
+    return None
+
+  def _convertS(self, size, objecttype): # objecttype = Scatter
+    plotly_key = 'marker_size'
+    return {plotly_key: size}
+
+  def _convertWhere(self, where, objecttype): # objecttype = Step
+    return None
+
+  def _convertWidth(self, float_number, objecttype): # objecttype = Line
+    plotly_key = 'width'
+    return {plotly_key: float_number}
+
+  def _convertShowlegend(self, boolean, objecttype): # objecttype = Line, Bar
+    return None
+
+  def _convertZorder(self, zorderval, objecttype): # objecttype = Line, Bar
+    return None
+
+  def setGraphTitle(self, title):
+    if Plotter._IS_MPL:
+      self.axes.set_title(title)
+    else:
+      self.graphly.update_layout(title=dict(text=title,
+                                            xref='paper',
+                                            x=0.5,
+                                            xanchor='center'))
+
+  def setXLim(self, xmin=None, xmax=None):
+    if Plotter._IS_MPL:
+      self.axes.set_xlim(left=xmin, right=xmax)
+    else:
+      if xmin == 0 and xmax is None:
+        self.graphly.update_xaxes(rangemode = 'tozero')
+      else:
+        self.graphly.update_xaxes(range=[xmin, xmax])
+
+  def setYLim(self, ymin=None, ymax=None, second_y=None):
+    if Plotter._IS_MPL:
+      if second_y:
+        axis = self.axes2
+      else:
+        axis = self.axes
+      axis.set_ylim(bottom=ymin, top=ymax)
+
+    else:
+      if ymin == 0 and ymax is None:
+        self.graphly.update_yaxes(rangemode='tozero', secondary_y=second_y)
+      else:
+        self.graphly.update_yaxes(range=[ymin, ymax], secondary_y=second_y)
+
+  def setXLabel(self, x_label):
+    if Plotter._IS_MPL:
+      self.axes.set_xlabel(x_label)
+    else:
+      self.graphly.update_xaxes(title_text=x_label)
+
+  def setYLabel(self, y_label, second_y=None):
+    if Plotter._IS_MPL:
+      if second_y:
+        axis = self.axes2
+      else:
+        axis = self.axes
+      axis.set_ylabel(y_label)
+    else:
+      self.graphly.update_yaxes(title_text=y_label, secondary_y=second_y)
+
+  def setXTickValues(self, tickvalues):
+    if Plotter._IS_MPL:
+      self.axes.set_xticks(tickvalues)
+    else:
+      self.graphly.update_xaxes(tickmode='array', tickvals=tickvalues)
+
+  def setXTickLabels(self, ticklabels):
+    if Plotter._IS_MPL:
+      self.axes.set_xticklabels(ticklabels)
+    else:
+      self.graphly.update_xaxes(ticktext=ticklabels)
+
+  def setYTickSuffix(self, ticksuffix, second_y=None):
+    if Plotter._IS_MPL:
+      if second_y:
+        axis = self.axes2
+      else:
+        axis = self.axes
+
+      axis.yaxis.set_major_formatter(
+                         FuncFormatter(lambda y, _: ('{}'+ticksuffix).format(int(y))))
+    else:
+      self.graphly.update_yaxes(ticksuffix=ticksuffix, secondary_y=second_y)
+
+  def setYTickLabelcolor(self, labelcolor, second_y=None):
+    if Plotter._IS_MPL:
+      if second_y:
+        axis = self.axes2
+      else:
+        axis = self.axes
+      axis.tick_params(axis='y', color=labelcolor)
+    else:
+      self.graphly.update_yaxes(tickcolor=labelcolor, secondary_y=second_y)
+
+  def secondYAxis(self):
+    if Plotter._IS_MPL:
+      self.axes2 = self.axes.twinx()
+      self._second_y_axis = True
 
 class ExpType(): # Don't create as enum as we will compare with real integers
   LightIntensity = 2
