@@ -912,14 +912,7 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
   if (PerfPlots.HeadFixDate in draw_plots) and head_fixation_date \
    and head_fixation_session:
     plotter.createVLine(x=head_fixation_session, color='gray', linestyle='-',
-                        alpha=1, zorder=-1)
-
-    # We have to get the vertical line into the legend
-    # In MPL, we append empty traces to the legend items
-    # They have to be described with Line2D keywords
-    # In Plotly, we have to create actual traces outside of the axes ranges
-    plotter.addLegendItem(marker='|', linestyle='None', color='gray', alpha=0.8,
-                          markersize=10*SCALE_X, label="$1^{st}$ head-fixed session")
+                        alpha=1, zorder=-1, label="$1^{st}$ head-fixed session")
 
   if not axes_legend:
     return
