@@ -24,7 +24,7 @@ class Plotter:
                 'zorder', 'edgecolor', 'handles', 'labels', 'loc',
                 'bbox_to_anchor', 'ncol', 'fancybox', 'prop', 'alpha',
                 'edgecolors', 's', 'where', 'c']
-  PLOTLY_KWARGS = ['showlegend']
+  PLOTLY_KWARGS = ['showlegend', 'marker_color', 'marker_symbol', 'name']
 
   # These are default style settings to make the plotly figs look like mpl figs
   PLOTLY_LAYOUT = dict(plot_bgcolor='white',
@@ -148,35 +148,67 @@ class Plotter:
                                         fillcolor=fillcolor, showlegend=False),
                              secondary_y=second_y)
 
-  def createVLine(self, x, **kwargs):
+  def createVLine(self, x, second_y=None, **kwargs):
     mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
 
     if Plotter._IS_MPL:
       conv_kwargs = self._convertKWArgs('line', **plotly_kwargs)
       mpl_kwargs.update(conv_kwargs)
 
-      self.axes.axvline(x=x, **mpl_kwargs)
+      if second_y:
+        axis = self.axes2
+      else:
+        axis = self.axes
+
+      if 'label' in mpl_kwargs and mpl_kwargs['linestyle'] in ['-', 'solid']:
+        # In this case, we want a vertical marker symbol in the legend
+        # We need to add the legend entry seperately
+        line = Line2D([], [], marker='|', linestyle='None',
+                      color=mpl_kwargs['color'],
+                      markersize=10*SCALE_X,
+                      label=mpl_kwargs['label'])
+        self._handles3.append(line)
+        self._labels3.append(line.get_label())
+
+      axis.axvline(x=x, **mpl_kwargs)
 
     else:
       conv_kwargs = self._convertKWArgs('line', **mpl_kwargs)
       plotly_kwargs.update(conv_kwargs)
+      if 'name' in plotly_kwargs:
+        if 'line_dash' in plotly_kwargs and plotly_kwargs['line_dash'] not in ['solid', '-']:
+          self.addTrace('line', x=[-5], y=[-5], second_y=second_y, **kwargs)
+
+        else:
+          self.addTrace('scatter', x=[-5], y=[-5], second_y=second_y,
+                        marker_symbol='line_ns_open',
+                        marker_color=plotly_kwargs['line_color'],
+                        name=plotly_kwargs['name'])
 
       self.graphly.add_shape(type='line', layer='below',
                              yref='paper', y0=0, y1=1,
                              xref='x', x0=x, x1=x,
                              **plotly_kwargs)
 
-  def createHLine(self, y, **kwargs):
+  def createHLine(self, y, second_y=None, **kwargs):
     mpl_kwargs, plotly_kwargs =self._handleKWArgs(**kwargs)
 
     if Plotter._IS_MPL:
       conv_kwargs = self._convertKWArgs('line', **plotly_kwargs)
       mpl_kwargs.update(conv_kwargs)
-      self.axes.axhline(y=y, **mpl_kwargs)
+      if second_y:
+        axis = self.axes2
+      else:
+        axis = self.axes
+
+      axis.axhline(y=y, **mpl_kwargs)
 
     else:
       conv_kwargs = self._convertKWArgs('line', **mpl_kwargs)
       plotly_kwargs.update(conv_kwargs)
+
+      if 'name' in plotly_kwargs:
+          self.addTrace('line', x=[-5], y=[-5], second_y=second_y, **kwargs)
 
       if self._second_y_axis is False:
         x1=1
