@@ -34,19 +34,20 @@ app.layout = html.Div([
                 options = [{'label': i, 'value': i} for i in mice_names],
                 value = None
                 )
-            ], style = {'width':'30%', 'display':'inline-block',
-                        'vertical-align':'top'}),
+            ]),
 
         html.Div([
             html.Label('To select 1 day, pick only start date.'),
-            dcc.DatePickerRange(id = 'calendar'),
+            dcc.DatePickerRange(
+                id = 'calendar',
+                day_size = 29
+                ),
             dcc.Checklist(
                 id = 'date-checkbox',
                 options = [{'label':'Pick all dates', 'value':'pick-all'}],
                 value = []
                 )
-            ], style = {'width':'30%', 'display':'inline-block',
-                        'vertical-align':'top'}),
+            ]),
 
         html.Div([
             html.Button(
@@ -54,27 +55,35 @@ app.layout = html.Div([
                 n_clicks=0,
                 children='Plot'
                 )
-            ], style = {'display':'inline-block', 'vertical-align':'top'})
-            ]),
+            ])
+        ],
+        className='sidenav'
+        ),
 
     html.Div([
-        dcc.Graph(
-            id='graph1',
-            style={'width': '48%', 'display': 'inline-block'}
-            ),
+        html.Div([
+            dcc.Graph(
+                id='graph1',
+                style={'width': '50%', 'display': 'inline-block'}
+                ),
 
-        dcc.Graph(
-            id='graph2',
-            style={'width': '48%', 'float': 'right', 'display': 'inline-block'}
-            )
-        ]),
+            dcc.Graph(
+                id='graph2',
+                style={'width': '50%', 'float': 'right', 'display': 'inline-block'}
+                )
+            ]),
 
-    dcc.Graph(id='graph3'),
+        html.Div([
+            dcc.Graph(id='graph3'),
 
-    dcc.Graph(id='graph4'),
+            dcc.Graph(id='graph4')
+            ]),
 
-    # hidden div to store sub-df as json?
-    html.Div(id='hidden-div', style={'display': 'none'})
+        # hidden div to store sub-df as json?
+        html.Div(id='hidden-div', style={'display': 'none'})
+    ],
+    className='main'
+    )
 ])
 
 #%% Callback functions
