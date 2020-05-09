@@ -1149,7 +1149,7 @@ def psychAxes(animal_name="", plotter=None):
 def psychAll(df, PsycStim_axes):
     _psych(df, PsycStim_axes, 'k', 3, "All")
 
-def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
+def _psych(df, plotter, color, linewidth, legend_name, plot_points=True,
            offset=False, SEM=False, GLM=True, min_slope=None):
     '''Do the actual plotting'''
     #ndxNan = isnan(DataCustom.ChoiceLeft);
@@ -1167,6 +1167,7 @@ def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
       PsycY *= 100 # Convert to percentile
       PsycX = (((np.unique(BinIdx[(~ndxNan) & ndxChoice])+1)/StimBin)*2)-1-(
                                                           EXTRA_BIN*(1/StimBin))
+
       if offset: # Shift points a little bit to the right/light so that their center
                  # would overlap with the histogram bar's center, that's all
         lt_zero = PsycX[PsycX<0]
@@ -1179,9 +1180,9 @@ def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
                                             #BinIdx[ndxError & ndxMinWT]).mean()
       # Xerr = (((np.unique(BinIdx[ndxError & ndxMinWT])+1)/DVNBin)*2)-1-(
                                                           #EXTRA_BIN*(1/DVNBin))
-      PsycStim_axes.plot(PsycX, PsycY, linestyle='none', marker='o',
-                         markeredgecolor=color, markerfacecolor=color,
-                         markerSize=1.5*linewidth*SCALE_X)
+      plotter.addTrace('scatter', PsycX, PsycY, marker='o', c=color,
+                       edgecolors=color, s=1.5*linewidth*SCALE_X,
+                       showlegend=False)
 
     if np.sum((~ndxNan) & ndxChoice) > 1:
         x = StimDV[(~ndxNan) & ndxChoice]
@@ -1236,19 +1237,21 @@ def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
         if len(legend_name):
           legend_name="{}{}".format(legend_name,
                     "" if not plot_points else " ({:,} trials)".format(len(df)))
+          showlegend=True
         else:
           legend_name=None
-        PsycStim_axes.plot(x_sampled, y_points * 100, # Convert y to percentile
-                           color=color, linewidth=linewidth*SCALE_X,
-                           label=legend_name)
+          showlegend=False
+        plotter.addTrace('line', x_sampled, y_points*100, color=color,
+                          linewidth=linewidth*SCALE_X, label=legend_name,
+                          showlegend=showlegend)
 
         # print("label: {} - len data: {}".format(legend_name, len(y)))
         if SEM:
           #sem_lower, sem_upper = (int_low, int_upper) if GLM else (-y.sem(), y.sem())
           y_sem_lower = (int_low * 100) if GLM else y_points - (y.sem() * 100)
           y_sem_upper = (int_upper * 100) if GLM else y_points +  (y.sem() * 100)
-          PsycStim_axes.fill_between(x_sampled, y_sem_upper, y_sem_lower, color=color,
-                                     alpha=0.2)
+          plotter.fillBetween(x_sampled, y_sem_upper, y_sem_lower, color=color,
+                                alpha=0.2)
         if GLM:
           #print("Intercept:", intercept, "- Slope:", slope)
           return intercept, slope
