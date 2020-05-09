@@ -182,16 +182,16 @@ class MakeAndSavePlots():
     return fig, axs
 
 def showAndSaveReport():
-  data_flie = sys.argv[1]
+  data_file = sys.argv[1]
   save_dir = sys.argv[2]
-  print("Data file:", data_flie)
+  print("Data file:", data_file)
   print("Save dir:", save_dir)
   temp_path = r"C:\Users\hatem\OneDrive\Documents\py_matlab\\"+ \
               r"wfThy2_Mouse2AFC_Dec05_2019_Session1.mat"
               #r"vgat4_Mouse2AFC_Dec09_2019_Session2.mat"
               #r"RDK_WT1_Mouse2AFC_Dec04_2019_Session1.mat"
 
-  session_df = mat_reader.loadFiles(data_flie)
+  session_df = mat_reader.loadFiles(data_file)
   print("Session df length:", len(session_df))
   MakeAndSavePlots().run(session_df, save_dir)
 
