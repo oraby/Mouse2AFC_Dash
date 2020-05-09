@@ -907,7 +907,7 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
         plotter.fillBetween(x_data, metric_data-stds[i], metric_data+stds[i],
                             color=color[i], alpha=shaded_alpha[i], second_y=True)
 
-  plotter.createHLine(y=0.5*100, color='gray', linestyle='dashed', zorder = -1)
+  plotter.createHLine(y=0.5*100, color='gray', linestyle='dashed', zorder=-1)
 
   if (PerfPlots.HeadFixDate in draw_plots) and head_fixation_date \
    and head_fixation_session:
