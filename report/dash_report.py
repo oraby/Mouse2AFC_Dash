@@ -151,6 +151,9 @@ def update_graph(clicks, mouse_name, start, end): # var 1: Input val 1; var2: In
     raise PreventUpdate
     # Print error message
 
+  if start is None and end is None:
+    raise PreventUpdate
+
   start_date = dt.datetime.strptime(start, '%Y-%m-%d')
   start_date = start_date.date()
 
