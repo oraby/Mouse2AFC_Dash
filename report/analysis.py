@@ -44,7 +44,7 @@ class Plotter:
     Plotter._IS_MPL = is_mpl
 
   def __init__(self, graph_obj=None, second_y=False):
-   if Plotter._IS_MPL:
+    if Plotter._IS_MPL:
       self.axes = graph_obj if graph_obj is not None else plt.axes()
       self._second_y_axis = False
       self._handles1 = []
@@ -54,7 +54,7 @@ class Plotter:
       self._handles3 = []
       self._labels3 = []
 
-   else:
+    else:
       self.graphly = graph_obj if graph_obj is not None else go.Figure()
       self.graphly.update_layout(Plotter.PLOTLY_LAYOUT)
       self._second_y_axis = second_y
@@ -537,6 +537,7 @@ class Plotter:
       self.axes2 = self.axes.twinx()
       self._second_y_axis = True
 
+
 class ExpType(): # Don't create as enum as we will compare with real integers
   LightIntensity = 2
   RDK = 4
@@ -550,6 +551,7 @@ class ExpType(): # Don't create as enum as we will compare with real integers
     else:
       raise ValueError("Unknown exp_type: " + str(exp_type))
 
+
 #analysis_for = ExpType.LightIntensity if "lightchasing" in DF_FILE.lower() \
 #                                      else ExpType.RDK
 analysis_for = ExpType.RDK
@@ -559,40 +561,41 @@ SAVE_FIG_SIZE = None
 FORMATS = None
 DPI = None
 
+
 def setMatplotlibParams(silent=False):
-    global SCALE_X, SCALE_Y, SAVE_FIG_SIZE, FORMATS, DPI
+  global SCALE_X, SCALE_Y, SAVE_FIG_SIZE, FORMATS, DPI
 
-    rc_params = ['figure.figsize','font.size','lines.linewidth',
-                 'lines.dashed_pattern','lines.dashdot_pattern',
-                 'lines.dotted_pattern']
-    if "original_rc" not in locals():
-      original_rc = {}
-    for attr_name in rc_params:
-      if attr_name not in original_rc:
-        original_rc[attr_name] = mpl.rcParams[attr_name]
+  rc_params = ['figure.figsize','font.size','lines.linewidth',
+               'lines.dashed_pattern','lines.dashdot_pattern',
+               'lines.dotted_pattern']
+  if "original_rc" not in locals():
+    original_rc = {}
+  for attr_name in rc_params:
+    if attr_name not in original_rc:
+      original_rc[attr_name] = mpl.rcParams[attr_name]
 
-    SAVE_FIG_SIZE = (6.4, 4.8) # original mpl.rcParams['figure.figsize'] is [6.4, 4.8]
-    SCALE_X = SAVE_FIG_SIZE[0]/(original_rc['figure.figsize'][0])
-    SCALE_Y = SAVE_FIG_SIZE[1]/(original_rc['figure.figsize'][1])
-    for attr_name, attr_val in original_rc.items():
-      if not hasattr(attr_val, "__len__"):
-        new_attr_val = attr_val*SCALE_X
-      elif len(attr_val) == 2 or len(attr_val) == 4:
-        new_attr_val = (attr_val[0]*SCALE_X, attr_val[1]*SCALE_Y)
-        if len(attr_val) == 4:
-          new_attr_val = new_attr_val + (attr_val[2]*SCALE_X,
-                                         attr_val[3]*SCALE_Y,)
-      else:
-        new_attr_val = list(map(lambda el:el*SCALE_X, attr_val))
-      if not silent:
-        print("Updating rcParam[{}] from {} to {}".format(attr_name, attr_val,
-                                                          new_attr_val))
-      mpl.rcParams[attr_name] = new_attr_val
+  SAVE_FIG_SIZE = (6.4, 4.8) # original mpl.rcParams['figure.figsize'] is [6.4, 4.8]
+  SCALE_X = SAVE_FIG_SIZE[0]/(original_rc['figure.figsize'][0])
+  SCALE_Y = SAVE_FIG_SIZE[1]/(original_rc['figure.figsize'][1])
+  for attr_name, attr_val in original_rc.items():
+    if not hasattr(attr_val, "__len__"):
+      new_attr_val = attr_val*SCALE_X
+    elif len(attr_val) == 2 or len(attr_val) == 4:
+      new_attr_val = (attr_val[0]*SCALE_X, attr_val[1]*SCALE_Y)
+      if len(attr_val) == 4:
+        new_attr_val = new_attr_val + (attr_val[2]*SCALE_X,
+                                       attr_val[3]*SCALE_Y,)
+    else:
+      new_attr_val = list(map(lambda el:el*SCALE_X, attr_val))
+    if not silent:
+      print("Updating rcParam[{}] from {} to {}".format(attr_name, attr_val,
+                                                        new_attr_val))
+    mpl.rcParams[attr_name] = new_attr_val
 
-    DPI = 600
-    FORMATS = [".png"]#,".tiff",".pdf",".svg"]
-    mpl.rcParams['pdf.fonttype'] = 42
-    mpl.rcParams['ps.fonttype'] = 42
+  DPI = 600
+  FORMATS = [".png"]#,".tiff",".pdf",".svg"]
+  mpl.rcParams['pdf.fonttype'] = 42
+  mpl.rcParams['ps.fonttype'] = 42
 
 
 def savePlot(title, confd=False, legend=None, animal_name=None):
@@ -624,6 +627,7 @@ def savePlot(title, confd=False, legend=None, animal_name=None):
   #for axis, title in zip(plt.gcf().axes, titles):
   #  axis.set_title(title)
 
+
 @unique
 class PerfPlots(Enum):
   Performance = auto()
@@ -639,6 +643,7 @@ class PerfPlots(Enum):
   StimAPO = auto() # Stimulus after poke out
   PortLEDCueRwrd = auto()
   HeadFixDate = auto()
+
 
 MIN_NUM_SESSION_TRIALS=50
 SINGLE_SESSION_BIN_SIZE=20
@@ -739,14 +744,14 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
     catch_error_trials = block[(block.GUI_CatchError == True) &
                                (block.ChoiceCorrect == 0)]
     if len(catch_error_trials):
-        catch_wt_error.append(catch_error_trials.FeedbackTime.mean())
+      catch_wt_error.append(catch_error_trials.FeedbackTime.mean())
     else:
-        catch_wt_error.append(np.NaN)
+      catch_wt_error.append(np.NaN)
     catch_correct = block[(block.CatchTrial == 1) & (block.ChoiceCorrect == 1)]
     if len(catch_correct):
-        catch_wt_correct.append(catch_correct.FeedbackTime.mean())
+      catch_wt_correct.append(catch_correct.FeedbackTime.mean())
     else:
-        catch_wt_correct.append(np.NaN)
+      catch_wt_correct.append(np.NaN)
 
     used_difficulties = []
     num_points = 0
@@ -845,11 +850,11 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
              PerfPlots.CatchWT, PerfPlots.CatchWT]
     color=['red','magenta',"gray","orange",'green','red']
     if not reverse_alphas:
-        alpha=[1.0, 0.6, 0.8, 0.5, 1.0, 1.0]
-        shaded_alpha=[0.1, 0.15, 0.1, None, None, None]
+      alpha=[1.0, 0.6, 0.8, 0.5, 1.0, 1.0]
+      shaded_alpha=[0.1, 0.15, 0.1, None, None, None]
     else:
-        alpha=[0.2, 0.8, 0.8, 0.5, 1.0, 1.0]
-        shaded_alpha=[0.04, 0.1, 0.1, None, None, None]
+      alpha=[0.2, 0.8, 0.8, 0.5, 1.0, 1.0]
+      shaded_alpha=[0.04, 0.1, 0.1, None, None, None]
     tracetype=['line','line','line','line','scatter','scatter']
     linestyle=['-', '-','-','-',"None","None"]
     marker=[None,None,None,None,'+','+']
@@ -1084,8 +1089,6 @@ def trialRate(df, plotter):
                         color='black', label="Median Session Trials Count",
                         alpha=0.8, zorder=len(max_sessions_time))
 
-
-
   #axes.yaxis.tick_right()
   #axes.yaxis.set_label_position("right")
 
@@ -1126,142 +1129,145 @@ def interceptSlope(df):
   intercept, slope = glm_res.params
   return intercept, slope
 
+
 def psychAxes(animal_name="", plotter=None):
-    title="Psychometric Stim{}".format(
-                                  " " + animal_name if len(animal_name) else "")
-    x_label= "RDK Coherence"  if analysis_for == ExpType.RDK else "Light Intensity"
-    x_ticks=np.arange(-1,1.1,0.4)
-    def cohrStr(tick):
-      cohr = int(round(100*tick))
-      return "{}%{}".format(abs(cohr),'R' if cohr<0 else "" if cohr==0 else 'L')
-    x_labels=list(map(cohrStr, x_ticks))
+  title="Psychometric Stim{}".format(
+                                " " + animal_name if len(animal_name) else "")
+  x_label= "RDK Coherence"  if analysis_for == ExpType.RDK else "Light Intensity"
+  x_ticks=np.arange(-1,1.1,0.4)
+  def cohrStr(tick):
+    cohr = int(round(100*tick))
+    return "{}%{}".format(abs(cohr),'R' if cohr<0 else "" if cohr==0 else 'L')
+  x_labels=list(map(cohrStr, x_ticks))
 
-    #if not plotter:
-        #axes = plt.axes()
+  #if not plotter:
+      #axes = plt.axes()
 
-    #plotter.set_ylim(-.05, 1.05)
-    plotter.setGraphTitle(title)
-    plotter.setYLim(-5, 105)
-    plotter.setXLim(-1.05, 1.05)
-    plotter.setXLabel(x_label)
-    plotter.setYLabel("Choice Left (%)")
-    plotter.setXTickValues(x_ticks)
-    plotter.setXTickLabels(x_labels)
-    plotter.setYTickSuffix('%')
-    plotter.createVLine(x=0, color='gray', linestyle='dashed', zorder=-10)
-    plotter.createHLine(y=50,  color='gray', linestyle='dashed', zorder=-10)
+  #plotter.set_ylim(-.05, 1.05)
+  plotter.setGraphTitle(title)
+  plotter.setYLim(-5, 105)
+  plotter.setXLim(-1.05, 1.05)
+  plotter.setXLabel(x_label)
+  plotter.setYLabel("Choice Left (%)")
+  plotter.setXTickValues(x_ticks)
+  plotter.setXTickLabels(x_labels)
+  plotter.setYTickSuffix('%')
+  plotter.createVLine(x=0, color='gray', linestyle='dashed', zorder=-10)
+  plotter.createHLine(y=50,  color='gray', linestyle='dashed', zorder=-10)
+
 
 def psychAll(df, PsycStim_axes):
     _psych(df, PsycStim_axes, 'k', 3, "All")
 
+
 def _psych(df, plotter, color, linewidth, legend_name, plot_points=True,
            offset=False, SEM=False, GLM=True, min_slope=None):
-    '''Do the actual plotting'''
-    #ndxNan = isnan(DataCustom.ChoiceLeft);
-    ndxNan = df.ChoiceLeft.isnull()
-    ndxChoice = df.ForcedLEDTrial == 0
-    StimDV = df.DV
-    if plot_points:
-      StimBin = 10
-      EXTRA_BIN=2
-      BinIdx = pd.cut(StimDV,np.linspace(StimDV.min(), StimDV.max(),
-                      StimBin+EXTRA_BIN), labels=False, include_lowest=True)
-      # Choice trials
-      PsycY = df.ChoiceLeft[(~ndxNan) & ndxChoice].groupby(
-                                             BinIdx[~ndxNan & ndxChoice]).mean()
-      PsycY *= 100 # Convert to percentile
-      PsycX = (((np.unique(BinIdx[(~ndxNan) & ndxChoice])+1)/StimBin)*2)-1-(
-                                                          EXTRA_BIN*(1/StimBin))
+  '''Do the actual plotting'''
+  #ndxNan = isnan(DataCustom.ChoiceLeft);
+  ndxNan = df.ChoiceLeft.isnull()
+  ndxChoice = df.ForcedLEDTrial == 0
+  StimDV = df.DV
+  if plot_points:
+    StimBin = 10
+    EXTRA_BIN=2
+    BinIdx = pd.cut(StimDV,np.linspace(StimDV.min(), StimDV.max(),
+                    StimBin+EXTRA_BIN), labels=False, include_lowest=True)
+    # Choice trials
+    PsycY = df.ChoiceLeft[(~ndxNan) & ndxChoice].groupby(
+                                           BinIdx[~ndxNan & ndxChoice]).mean()
+    PsycY *= 100 # Convert to percentile
+    PsycX = (((np.unique(BinIdx[(~ndxNan) & ndxChoice])+1)/StimBin)*2)-1-(
+                                                        EXTRA_BIN*(1/StimBin))
 
-      if offset: # Shift points a little bit to the right/light so that their center
-                 # would overlap with the histogram bar's center, that's all
-        lt_zero = PsycX[PsycX<0]
-        gt_zero = PsycX[PsycX>0]
-        lt_zero += 0.5/(StimBin/2)
-        gt_zero -= 0.5/(StimBin/2)
-        PsycX = np.concatenate([lt_zero,gt_zero])
+    if offset: # Shift points a little bit to the right/light so that their center
+               # would overlap with the histogram bar's center, that's all
+      lt_zero = PsycX[PsycX<0]
+      gt_zero = PsycX[PsycX>0]
+      lt_zero += 0.5/(StimBin/2)
+      gt_zero -= 0.5/(StimBin/2)
+      PsycX = np.concatenate([lt_zero,gt_zero])
 
-      # WTerr = df.FeedbackTime[ndxError & ndxMinWT].groupby(
-                                            #BinIdx[ndxError & ndxMinWT]).mean()
-      # Xerr = (((np.unique(BinIdx[ndxError & ndxMinWT])+1)/DVNBin)*2)-1-(
-                                                          #EXTRA_BIN*(1/DVNBin))
-      plotter.addTrace('scatter', PsycX, PsycY, marker='o', c=color,
-                       edgecolors=color, s=1.5*linewidth*SCALE_X,
-                       showlegend=False)
+    # WTerr = df.FeedbackTime[ndxError & ndxMinWT].groupby(
+                                          #BinIdx[ndxError & ndxMinWT]).mean()
+    # Xerr = (((np.unique(BinIdx[ndxError & ndxMinWT])+1)/DVNBin)*2)-1-(
+                                                        #EXTRA_BIN*(1/DVNBin))
+    plotter.addTrace('scatter', PsycX, PsycY, marker='o', c=color,
+                     edgecolors=color, s=1.5*linewidth*SCALE_X,
+                     showlegend=False)
 
-    if np.sum((~ndxNan) & ndxChoice) > 1:
-        x = StimDV[(~ndxNan) & ndxChoice]
-        y = df.ChoiceLeft[(~ndxNan) & ndxChoice]
+  if np.sum((~ndxNan) & ndxChoice) > 1:
+    x = StimDV[(~ndxNan) & ndxChoice]
+    y = df.ChoiceLeft[(~ndxNan) & ndxChoice]
 
-        x_sampled = np.linspace(StimDV.min(),StimDV.max(),50)
-        if GLM:
-          import statsmodels.formula.api as smf
-          import statsmodels.api as sm
-          import statsmodels.tools.sm_exceptions as sm_exceptions
+    x_sampled = np.linspace(StimDV.min(),StimDV.max(),50)
+    if GLM:
+      import statsmodels.formula.api as smf
+      import statsmodels.api as sm
+      import statsmodels.tools.sm_exceptions as sm_exceptions
 
-          glm_df = pd.DataFrame({'DV':x, 'ChoiceLeft':y})
-          mod1 = smf.glm('ChoiceLeft~DV', data=glm_df,
-                         family=sm.families.Binomial(sm.families.links.logit()))
-          try:
-            glm_res = mod1.fit()
-          except sm_exceptions.PerfectSeparationError:
-            print("skipping GLM fit for for session(s):", df.Date.unique())
-            print("PsycX len: ", len(x), len(y))
-            return None, None
-          #print(glm_res.summary())
-          intercept, slope = glm_res.params
-          if min_slope != None and slope < min_slope:
-            return intercept, slope
-          #print("Intercept:", intercept, "- Slope:", slope)
-          from scipy.special import logit
-          y_points = glm_res.predict(pd.DataFrame({'DV':x_sampled}))
-          conf_df = glm_res.conf_int()
-          int_low, int_upper = conf_df.iloc[0,0], conf_df.iloc[0,1]
-          #print("conf df :", conf_df)
-          conf_df = glm_res.get_prediction(pd.DataFrame({'DV':x_sampled})).conf_int(alpha=0.05)
-          #print("2. conf df :", conf_df.shape)
-          int_low = conf_df[:,0]
-          int_upper = conf_df[:,1]
-          #print("Using int_low:", int_low)
-          #print("Using int upper:", int_upper)
-        else:
-          def fsigmoid(x, a, b):
-              return 1.0 / (1.0 + np.exp(-a*(x-b)))
-          #y_ind = fsigmoid(np.linspace(-1,1,len(PsycX)), 2, 0)
-          try:
-            popt, pcov = curve_fit(fsigmoid, x, y, maxfev=1000)# , method='dogbox',
-                                   # bounds=([0, 0.],[100, 1.]))
-          except RuntimeError:
-            print("skipping sigmoidal fit for for session(s):", df.Date.unique())
-            print("PsycX len: ", len(x), len(y))
-            return None, None
-          else:
-            y_points = fsigmoid(x_sampled, *popt)
+      glm_df = pd.DataFrame({'DV':x, 'ChoiceLeft':y})
+      mod1 = smf.glm('ChoiceLeft~DV', data=glm_df,
+                     family=sm.families.Binomial(sm.families.links.logit()))
+      try:
+        glm_res = mod1.fit()
+      except sm_exceptions.PerfectSeparationError:
+        print("skipping GLM fit for for session(s):", df.Date.unique())
+        print("PsycX len: ", len(x), len(y))
+        return None, None
+      #print(glm_res.summary())
+      intercept, slope = glm_res.params
+      if min_slope != None and slope < min_slope:
+        return intercept, slope
+      #print("Intercept:", intercept, "- Slope:", slope)
+      from scipy.special import logit
+      y_points = glm_res.predict(pd.DataFrame({'DV':x_sampled}))
+      conf_df = glm_res.conf_int()
+      int_low, int_upper = conf_df.iloc[0,0], conf_df.iloc[0,1]
+      #print("conf df :", conf_df)
+      conf_df = glm_res.get_prediction(pd.DataFrame({'DV':x_sampled})).conf_int(alpha=0.05)
+      #print("2. conf df :", conf_df.shape)
+      int_low = conf_df[:,0]
+      int_upper = conf_df[:,1]
+      #print("Using int_low:", int_low)
+      #print("Using int upper:", int_upper)
+    else:
+      def fsigmoid(x, a, b):
+        return 1.0 / (1.0 + np.exp(-a*(x-b)))
+      #y_ind = fsigmoid(np.linspace(-1,1,len(PsycX)), 2, 0)
+      try:
+        popt, pcov = curve_fit(fsigmoid, x, y, maxfev=1000)# , method='dogbox',
+                               # bounds=([0, 0.],[100, 1.]))
+      except RuntimeError:
+        print("skipping sigmoidal fit for for session(s):", df.Date.unique())
+        print("PsycX len: ", len(x), len(y))
+        return None, None
+      else:
+        y_points = fsigmoid(x_sampled, *popt)
 
-        #print("Sigmoid: ", fsigmoid(PsycX, *popt))
-        if len(legend_name):
-          legend_name="{}{}".format(legend_name,
-                    "" if not plot_points else " ({:,} trials)".format(len(df)))
-          showlegend=True
-        else:
-          legend_name=None
-          showlegend=False
-        plotter.addTrace('line', x_sampled, y_points*100, color=color,
-                          linewidth=linewidth*SCALE_X, label=legend_name,
-                          showlegend=showlegend)
+    #print("Sigmoid: ", fsigmoid(PsycX, *popt))
+    if len(legend_name):
+      legend_name="{}{}".format(legend_name,
+                "" if not plot_points else " ({:,} trials)".format(len(df)))
+      showlegend=True
+    else:
+      legend_name=None
+      showlegend=False
+    plotter.addTrace('line', x_sampled, y_points*100, color=color,
+                      linewidth=linewidth*SCALE_X, label=legend_name,
+                      showlegend=showlegend)
 
-        # print("label: {} - len data: {}".format(legend_name, len(y)))
-        if SEM:
-          #sem_lower, sem_upper = (int_low, int_upper) if GLM else (-y.sem(), y.sem())
-          y_sem_lower = (int_low * 100) if GLM else y_points - (y.sem() * 100)
-          y_sem_upper = (int_upper * 100) if GLM else y_points +  (y.sem() * 100)
-          plotter.fillBetween(x_sampled, y_sem_upper, y_sem_lower, color=color,
-                                alpha=0.2)
-        if GLM:
-          #print("Intercept:", intercept, "- Slope:", slope)
-          return intercept, slope
-        else:
-          return None, None
+    # print("label: {} - len data: {}".format(legend_name, len(y)))
+    if SEM:
+      #sem_lower, sem_upper = (int_low, int_upper) if GLM else (-y.sem(), y.sem())
+      y_sem_lower = (int_low * 100) if GLM else y_points - (y.sem() * 100)
+      y_sem_upper = (int_upper * 100) if GLM else y_points +  (y.sem() * 100)
+      plotter.fillBetween(x_sampled, y_sem_upper, y_sem_lower, color=color,
+                            alpha=0.2)
+    if GLM:
+      #print("Intercept:", intercept, "- Slope:", slope)
+      return intercept, slope
+    else:
+      return None, None
 
 
 #chosen_days = RDK_days if analysis_for == ExpType.RDK else lightintensity_days
@@ -1310,57 +1316,59 @@ def dfGenerator():
 
 
 METHOD="sum"
+
 def psychAnimalSessions(df,ANIMAL,plotter,METHOD):
-    if not len(df):
-        return
-    assert len(df.Name.unique()) == 1 # Assure that we only have one mouse
-    df = df.sort_values(["Date","SessionNum","TrialNumber"])
-    sessions = df.groupby([df.Date, df.SessionNum])
-    used_sessions = []
-    done_once = False
-    for i, (date_sessionnum, session) in enumerate(sessions):
-      date, session_num = date_sessionnum
-      #print("Session:",date,session_num)
-      num_trials = session.MaxTrial.unique()[0]
-      title="Single Session Performance" if not done_once else ""
-      LINE_WIDTH=0.5
-      ret = _psych(session,plotter,"gray",LINE_WIDTH,title,
-                   plot_points=False)
-      if ret != (None, None):
-        done_once = True
-        used_sessions.append(session)
-    # Merge used sessions
-    sessions = pd.concat(used_sessions)
-    LINE_WIDTH=3.0
-    _psych(sessions, plotter,'black',LINE_WIDTH,"Avg. Session Performance",
-           offset=True)
-    plotNormTrialDistrib(sessions,plotter,METHOD)
+  if not len(df):
+    return
+  assert len(df.Name.unique()) == 1 # Assure that we only have one mouse
+  df = df.sort_values(["Date","SessionNum","TrialNumber"])
+  sessions = df.groupby([df.Date, df.SessionNum])
+  used_sessions = []
+  done_once = False
+  for i, (date_sessionnum, session) in enumerate(sessions):
+    date, session_num = date_sessionnum
+    #print("Session:",date,session_num)
+    num_trials = session.MaxTrial.unique()[0]
+    title="Single Session Performance" if not done_once else ""
+    LINE_WIDTH=0.5
+    ret = _psych(session,plotter,"gray",LINE_WIDTH,title,
+                 plot_points=False)
+    if ret != (None, None):
+      done_once = True
+      used_sessions.append(session)
+  # Merge used sessions
+  sessions = pd.concat(used_sessions)
+  LINE_WIDTH=3.0
+  _psych(sessions, plotter,'black',LINE_WIDTH,"Avg. Session Performance",
+         offset=True)
+  plotNormTrialDistrib(sessions,plotter,METHOD)
 
-    new_text = " ({:,} sessions)".format(len(used_sessions))
-    plotter.updateLegendText(new_text, legend_item=0, append=True)
+  new_text = " ({:,} sessions)".format(len(used_sessions))
+  plotter.updateLegendText(new_text, legend_item=0, append=True)
 
-    plotter.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2), ncol=2,
-                   fancybox=True, prop={'size': 'x-small'})
+  plotter.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2), ncol=2,
+                 fancybox=True, prop={'size': 'x-small'})
+
 
 def plotNormTrialDistrib(df,plotter,METHOD):
-    ndxNan = df.ChoiceLeft.isnull()
-    ndxChoice = df.ForcedLEDTrial == 0
-    # Tilde inverts: use DV values where ndxNan is False and ndxChoice is True
-    # Meaning: Where ChoiceLeft is not 0, ForcedLEDTrial is 0.
-    difficulties = df.DV[(~ndxNan) & ndxChoice]
-    # bins=array([-1.,-0.8,-0.6,-0.4,-0.2,0.,0.2,0.4,0.6,0.8,1.]).
-    # Values define bin BORDERS (thus 11 values for 10 bins)
-    counts, bins = np.histogram(difficulties,bins=10)
-    counts = counts.astype(np.float)
-    if METHOD == "max":
-      counts /= counts.max()
-    elif METHOD == "sum":
-      counts /= sum(counts)
-    else:
-      raise ("Unknown METHOD " + METHOD)
+  ndxNan = df.ChoiceLeft.isnull()
+  ndxChoice = df.ForcedLEDTrial == 0
+  # Tilde inverts: use DV values where ndxNan is False and ndxChoice is True
+  # Meaning: Where ChoiceLeft is not 0, ForcedLEDTrial is 0.
+  difficulties = df.DV[(~ndxNan) & ndxChoice]
+  # bins=array([-1.,-0.8,-0.6,-0.4,-0.2,0.,0.2,0.4,0.6,0.8,1.]).
+  # Values define bin BORDERS (thus 11 values for 10 bins)
+  counts, bins = np.histogram(difficulties,bins=10)
+  counts = counts.astype(np.float)
+  if METHOD == "max":
+    counts /= counts.max()
+  elif METHOD == "sum":
+    counts /= sum(counts)
+  else:
+    raise ("Unknown METHOD " + METHOD)
 
-    plotter.addTrace('bar', bins[:-1], counts*100, width=0.2,align='edge', zorder=-1,
-                   color='pink', edgecolor='black', label="Norm. difficulty distribution")
+  plotter.addTrace('bar', bins[:-1], counts*100, width=0.2,align='edge', zorder=-1,
+                 color='pink', edgecolor='black', label="Norm. difficulty distribution")
 
 def filterSession(df,skip_first,skip_last,min_date,min_perf):
     all_sessions = df.groupby([df.Date,df.SessionNum])
