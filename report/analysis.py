@@ -139,11 +139,11 @@ class Plotter:
     else:
       col = mpl.colors.to_rgba(color)
       fillcolor = 'rgba({}, {}, {}, {})'.format(col[0], col[1], col[2], alpha)
-      # Draw 100% transparent line (upper border) as guide
+      # Draw 100% transparent line (upper or lower border) as guide
       self.graphly.add_trace(go.Scatter(x=x, y=y1, line_color='rgba(0,0,0,0)',
                                         showlegend=False),
                              secondary_y=second_y)
-      # Fill from lower border to upper (tonexty means from this to previously drawn line)
+      # Fill from other border (tonexty means from this to previously drawn line)
       self.graphly.add_trace(go.Scatter(x=x, y=y2, mode='none', fill='tonexty',
                                         fillcolor=fillcolor, showlegend=False),
                              secondary_y=second_y)
@@ -514,6 +514,9 @@ class Plotter:
       else:
         axis = self.axes
 
+      # FuncFormatter takes tick name and position as arguments.
+      # Position not used in this lambda function.
+      # Unused variables are named with underscore by convention.
       axis.yaxis.set_major_formatter(
                          FuncFormatter(lambda y, _: ('{}'+ticksuffix).format(int(y))))
     else:
@@ -696,6 +699,7 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
   used_feedback_delay = []
   head_fixation_session=None
   num_sessions = 0
+  # sessions = 1 session, block = set of trials within one session
   for date_sessionnum, block in sessions:
     if single_session:
       #print("date_sessionnum:",date_sessionnum, "Block:", block.TrialNumber)
@@ -788,6 +792,7 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
         ["Difficulty {}".format(i+1) for i in range(MAX_COUNT_DIFFICULTY)]
   alpha=[1.0,1.0,0.6] + [0.8]*MAX_COUNT_DIFFICULTY
   # Multiply rates by 100 to convert to percentages
+  # These are y-values
   metrics=[np.array(metric)*100 for metric in [performance, EWD, left_bias]] + \
           difficulties
   for i, metric in enumerate(metrics):
@@ -1340,7 +1345,11 @@ def psychAnimalSessions(df,ANIMAL,plotter,METHOD):
 def plotNormTrialDistrib(df,plotter,METHOD):
     ndxNan = df.ChoiceLeft.isnull()
     ndxChoice = df.ForcedLEDTrial == 0
+    # Tilde inverts: use DV values where ndxNan is False and ndxChoice is True
+    # Meaning: Where ChoiceLeft is not 0, ForcedLEDTrial is 0.
     difficulties = df.DV[(~ndxNan) & ndxChoice]
+    # bins=array([-1.,-0.8,-0.6,-0.4,-0.2,0.,0.2,0.4,0.6,0.8,1.]).
+    # Values define bin BORDERS (thus 11 values for 10 bins)
     counts, bins = np.histogram(difficulties,bins=10)
     counts = counts.astype(np.float)
     if METHOD == "max":
