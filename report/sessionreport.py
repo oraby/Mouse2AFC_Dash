@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import analysis
 import mat_reader
 
+analysis.Plotter.setPlotType(is_mpl=True)
 
 class PlotHandler():
   def __init__(self):
@@ -128,12 +129,16 @@ class MakeAndSavePlots():
                                     width_ratios=[1,2])
 
     animal_name = session_df.Name.unique()[0]
-    psych_axes = analysis.psychAxes(animal_name, axes=axs[0][0])
-    analysis.psychAnimalSessions(session_df, animal_name, psych_axes,
+
+    psych_plotter = analysis.Plotter(graph_obj=axs[0][0])
+    analysis.psychAxes(animal_name, psych_plotter)
+    analysis.psychAnimalSessions(session_df, animal_name, psych_plotter,
                                  analysis.METHOD)
 
+    perf_plotter1 = analysis.Plotter(graph_obj=axs[0][1])
     Plot = analysis.PerfPlots
-    analysis.performanceOverTime(session_df, single_session=True, axes=axs[0][1],
+    analysis.performanceOverTime(session_df, single_session=True,
+                                 plotter=perf_plotter1,
                                  draw_plots=[Plot.Performance,
                                              Plot.DifficultiesCount,
                                              Plot.Bias,
@@ -141,13 +146,18 @@ class MakeAndSavePlots():
                                              Plot.MovementT,
                                              Plot.ReactionT,
                                              Plot.StimAPO])
-    analysis.performanceOverTime(session_df, single_session=True, axes=axs[1][1],
+
+    perf_plotter2 = analysis.Plotter(graph_obj=axs[1][1])
+    analysis.performanceOverTime(session_df, single_session=True,
+                                 plotter=perf_plotter2,
                                  draw_plots=[Plot.Performance,
                                              Plot.Difficulties,
                                              Plot.SamplingT,
                                              Plot.CatchWT,
                                              Plot.MaxFeedbackDelay])
-    analysis.trialRate(session_df, axs[1][0])
+    trial_plotter = analysis.Plotter(graph_obj=axs[1][0])
+    analysis.trialRate(session_df, trial_plotter)
+
     return fig
 
   def _confidencePlot(self, session_df):
