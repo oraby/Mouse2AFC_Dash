@@ -746,8 +746,8 @@ def setMatplotlibParams(silent=False):
   for attr_name in rc_params:
     if attr_name not in original_rc:
       original_rc[attr_name] = mpl.rcParams[attr_name]
-
-  SAVE_FIG_SIZE = (6.4, 4.8) # original mpl.rcParams['figure.figsize'] is [6.0, 4.0]
+  # original mpl.rcParams['figure.figsize'] is [6.0, 4.0]
+  SAVE_FIG_SIZE = (6.4, 4.8)
   SCALE_X = SAVE_FIG_SIZE[0]/(original_rc['figure.figsize'][0])
   SCALE_Y = SAVE_FIG_SIZE[1]/(original_rc['figure.figsize'][1])
   for attr_name, attr_val in original_rc.items():
