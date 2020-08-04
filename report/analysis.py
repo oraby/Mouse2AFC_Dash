@@ -729,8 +729,8 @@ class ExpType(): # Don't create as enum as we will compare with real integers
 #analysis_for = ExpType.LightIntensity if "lightchasing" in DF_FILE.lower() \
 #                                      else ExpType.RDK
 analysis_for = ExpType.RDK
-SCALE_X = None
-SCALE_Y = None
+SCALE_X = 1
+SCALE_Y = 1
 SAVE_FIG_SIZE = None
 FORMATS = None
 DPI = None
@@ -747,7 +747,7 @@ def setMatplotlibParams(silent=False):
     if attr_name not in original_rc:
       original_rc[attr_name] = mpl.rcParams[attr_name]
 
-  SAVE_FIG_SIZE = (6.4, 4.8) # original mpl.rcParams['figure.figsize'] is [6.4, 4.8]
+  SAVE_FIG_SIZE = (6.4, 4.8) # original mpl.rcParams['figure.figsize'] is [6.0, 4.0]
   SCALE_X = SAVE_FIG_SIZE[0]/(original_rc['figure.figsize'][0])
   SCALE_Y = SAVE_FIG_SIZE[1]/(original_rc['figure.figsize'][1])
   for attr_name, attr_val in original_rc.items():
