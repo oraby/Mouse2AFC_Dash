@@ -736,39 +736,39 @@ FORMATS = None
 DPI = None
 
 def setMatplotlibParams(silent=False):
-    global SCALE_X, SCALE_Y, SAVE_FIG_SIZE, FORMATS, DPI
+  global SCALE_X, SCALE_Y, SAVE_FIG_SIZE, FORMATS, DPI
 
-    rc_params = ['figure.figsize','font.size','lines.linewidth',
-                 'lines.dashed_pattern','lines.dashdot_pattern',
-                 'lines.dotted_pattern']
-    if "original_rc" not in locals():
-      original_rc = {}
-    for attr_name in rc_params:
-      if attr_name not in original_rc:
-        original_rc[attr_name] = mpl.rcParams[attr_name]
+  rc_params = ['figure.figsize','font.size','lines.linewidth',
+               'lines.dashed_pattern','lines.dashdot_pattern',
+               'lines.dotted_pattern']
+  if "original_rc" not in locals():
+    original_rc = {}
+  for attr_name in rc_params:
+    if attr_name not in original_rc:
+      original_rc[attr_name] = mpl.rcParams[attr_name]
 
-    SAVE_FIG_SIZE = (6.4, 4.8) # original mpl.rcParams['figure.figsize'] is [6.4, 4.8]
-    SCALE_X = SAVE_FIG_SIZE[0]/(original_rc['figure.figsize'][0])
-    SCALE_Y = SAVE_FIG_SIZE[1]/(original_rc['figure.figsize'][1])
-    for attr_name, attr_val in original_rc.items():
-      if not hasattr(attr_val, "__len__"):
-        new_attr_val = attr_val*SCALE_X
-      elif len(attr_val) == 2 or len(attr_val) == 4:
-        new_attr_val = (attr_val[0]*SCALE_X, attr_val[1]*SCALE_Y)
-        if len(attr_val) == 4:
-          new_attr_val = new_attr_val + (attr_val[2]*SCALE_X,
-                                         attr_val[3]*SCALE_Y,)
-      else:
-        new_attr_val = list(map(lambda el:el*SCALE_X, attr_val))
-      if not silent:
-        print("Updating rcParam[{}] from {} to {}".format(attr_name, attr_val,
-                                                          new_attr_val))
-      mpl.rcParams[attr_name] = new_attr_val
+  SAVE_FIG_SIZE = (6.4, 4.8) # original mpl.rcParams['figure.figsize'] is [6.4, 4.8]
+  SCALE_X = SAVE_FIG_SIZE[0]/(original_rc['figure.figsize'][0])
+  SCALE_Y = SAVE_FIG_SIZE[1]/(original_rc['figure.figsize'][1])
+  for attr_name, attr_val in original_rc.items():
+    if not hasattr(attr_val, "__len__"):
+      new_attr_val = attr_val*SCALE_X
+    elif len(attr_val) == 2 or len(attr_val) == 4:
+      new_attr_val = (attr_val[0]*SCALE_X, attr_val[1]*SCALE_Y)
+      if len(attr_val) == 4:
+        new_attr_val = new_attr_val + (attr_val[2]*SCALE_X,
+                                       attr_val[3]*SCALE_Y,)
+    else:
+      new_attr_val = list(map(lambda el:el*SCALE_X, attr_val))
+    if not silent:
+      print("Updating rcParam[{}] from {} to {}".format(attr_name, attr_val,
+                                                        new_attr_val))
+    mpl.rcParams[attr_name] = new_attr_val
 
-    DPI = 600
-    FORMATS = [".png"]#,".tiff",".pdf",".svg"]
-    mpl.rcParams['pdf.fonttype'] = 42
-    mpl.rcParams['ps.fonttype'] = 42
+  DPI = 600
+  FORMATS = [".png"]#,".tiff",".pdf",".svg"]
+  mpl.rcParams['pdf.fonttype'] = 42
+  mpl.rcParams['ps.fonttype'] = 42
 
 
 def savePlot(title, confd=False, legend=None, animal_name=None):
