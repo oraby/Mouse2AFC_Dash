@@ -876,6 +876,8 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
   used_feedback_delay = []
   head_fixation_session=None
   num_sessions = 0
+  # block = set of trials within one session if sessions = 1 session
+  # block = set of sessions if sessions > 1 session
   for date_sessionnum, block in sessions:
     if single_session:
       #print("date_sessionnum:",date_sessionnum, "Block:", block.TrialNumber)
@@ -968,6 +970,7 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
         ["Difficulty {}".format(i+1) for i in range(MAX_COUNT_DIFFICULTY)]
   alpha=[1.0,1.0,0.6] + [0.8]*MAX_COUNT_DIFFICULTY
   # Multiply rates by 100 to convert to percentages
+  # These are y-values
   metrics=[np.array(metric)*100 for metric in [performance, EWD, left_bias]] + \
           difficulties
   for i, metric in enumerate(metrics):
