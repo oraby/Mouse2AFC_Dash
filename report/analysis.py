@@ -1488,7 +1488,7 @@ def psychAnimalSessions(df,ANIMAL,plotter,METHOD):
   plotter.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2), ncol=2,
                  fancybox=True, prop={'size': 'x-small'})
 
-def plotNormTrialDistrib(df,axes,METHOD):
+def plotNormTrialDistrib(df,plotter,METHOD):
   ndxNan = df.ChoiceLeft.isnull()
   ndxChoice = df.ForcedLEDTrial == 0
   # Tilde inverts: use DV values where ndxNan is False and ndxChoice is True
@@ -1504,9 +1504,10 @@ def plotNormTrialDistrib(df,axes,METHOD):
     counts /= sum(counts)
   else:
     raise ("Unknown METHOD " + METHOD)
-  axes.bar(bins[:-1],counts*100,width=0.2,align='edge',zorder=-1,color='pink',
-           edgecolor='k',label="Norm. difficulty distribution")
 
+  plotter.addBar(bins[:-1], counts*100, width=0.2, align='edge',
+                 zorder=-1, color='pink', edgecolor='black',
+                 label="Norm. difficulty distribution")
 
 def filterSession(df,skip_first,skip_last,min_date,min_perf):
     all_sessions = df.groupby([df.Date,df.SessionNum])
