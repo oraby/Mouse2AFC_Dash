@@ -1280,30 +1280,30 @@ def interceptSlope(df):
   return intercept, slope
 
 def psychAxes(animal_name="", axes=None):
-    title="Psychometric Stim{}".format(
-                                  " " + animal_name if len(animal_name) else "")
-    x_label= "RDK Coherence"  if analysis_for == ExpType.RDK else "Light Intensity"
-    if not axes:
-        axes = plt.axes()
-    #axes.set_ylim(-.05, 1.05)
-    axes.set_ylim(-5, 105)
-    axes.set_xlim(-1.05, 1.05)
-    axes.set_xlabel(x_label)
-    axes.set_ylabel("Choice Left (%)")
-    axes.yaxis.set_major_formatter(
-                         FuncFormatter(lambda y, _: '{}%'.format(int(y))))
-    axes.set_title(title)
+  title="Psychometric Stim{}".format(
+                                " " + animal_name if len(animal_name) else "")
+  x_label= "RDK Coherence"  if analysis_for == ExpType.RDK else "Light Intensity"
+  if not axes:
+    axes = plt.axes()
+  #axes.set_ylim(-.05, 1.05)
+  axes.set_ylim(-5, 105)
+  axes.set_xlim(-1.05, 1.05)
+  axes.set_xlabel(x_label)
+  axes.set_ylabel("Choice Left (%)")
+  axes.yaxis.set_major_formatter(
+                       FuncFormatter(lambda y, _: '{}%'.format(int(y))))
+  axes.set_title(title)
 
-    x_ticks=np.arange(-1,1.1,0.4)
-    def cohrStr(tick):
-      cohr = int(round(100*tick))
-      return "{}%{}".format(abs(cohr),'R' if cohr<0 else "" if cohr==0 else 'L')
-    x_labels=list(map(cohrStr, x_ticks))
-    axes.set_xticks(x_ticks)
-    axes.set_xticklabels(x_labels)
-    axes.axvline(x=0, color='gray', linestyle='dashed', zorder=-10)
-    axes.axhline(y=50, color='gray', linestyle='dashed', zorder=-10)
-    return axes
+  x_ticks=np.arange(-1,1.1,0.4)
+  def cohrStr(tick):
+    cohr = int(round(100*tick))
+    return "{}%{}".format(abs(cohr),'R' if cohr<0 else "" if cohr==0 else 'L')
+  x_labels=list(map(cohrStr, x_ticks))
+  axes.set_xticks(x_ticks)
+  axes.set_xticklabels(x_labels)
+  axes.axvline(x=0, color='gray', linestyle='dashed', zorder=-10)
+  axes.axhline(y=50, color='gray', linestyle='dashed', zorder=-10)
+  return axes
 
 def psychAll(df, PsycStim_axes):
     _psych(df, PsycStim_axes, 'k', 3, "All")
