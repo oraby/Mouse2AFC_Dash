@@ -1456,7 +1456,7 @@ def dfGenerator():
 
 
 METHOD="sum"
-def psychAnimalSessions(df,ANIMAL,PsycStim_axes,METHOD):
+def psychAnimalSessions(df,ANIMAL,plotter,METHOD):
   if not len(df):
     return
   assert len(df.Name.unique()) == 1 # Assure that we only have one mouse
@@ -1470,24 +1470,23 @@ def psychAnimalSessions(df,ANIMAL,PsycStim_axes,METHOD):
     num_trials = session.MaxTrial.unique()[0]
     title="Single Session Performance" if not done_once else ""
     LINE_WIDTH=0.5
-    ret = _psych(session,PsycStim_axes,"gray",LINE_WIDTH,title,
+    ret = _psych(session,plotter,"gray",LINE_WIDTH,title,
                  plot_points=False)
     if ret != (None, None):
       done_once = True
       used_sessions.append(session)
   # Merge used sessions
   sessions = pd.concat(used_sessions)
-  LINE_WIDTH=3
-  _psych(sessions, PsycStim_axes,'k',LINE_WIDTH,"Avg. Session Performance",
+  LINE_WIDTH=3.0
+  _psych(sessions, plotter,'black',LINE_WIDTH,"Avg. Session Performance",
          offset=True)
-  plotNormTrialDistrib(sessions,PsycStim_axes,METHOD)
-  handles, labels = PsycStim_axes.get_legend_handles_labels()
-  labels[0] = labels[0] + " ({:,} sessions)".format(len(used_sessions))
-  #PsycStim_axes.legend(handles, labels, loc='upper left', prop={'size': 'x-small'})
-  bbox_to_anchor = (0.5, -0.2)
-  PsycStim_axes.legend(handles, labels, loc='upper center',
-            bbox_to_anchor=bbox_to_anchor,ncol=2,fancybox=True,
-            prop={'size': 'x-small'})
+  plotNormTrialDistrib(sessions,plotter,METHOD)
+  plotter.draw()
+  new_text = " ({:,} sessions)".format(len(used_sessions))
+  plotter.updateLegendText(legend_item="Single Session Performance",
+                           new_text=new_text, append=True)
+  plotter.legend(loc='upper center', bbox_to_anchor=(0.5, -0.2), ncol=2,
+                 fancybox=True, prop={'size': 'x-small'})
 
 def plotNormTrialDistrib(df,axes,METHOD):
     ndxNan = df.ChoiceLeft.isnull()
