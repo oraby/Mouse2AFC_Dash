@@ -1303,7 +1303,7 @@ def psychAxes(animal_name="", plotter=None):
 def psychAll(df, PsycStim_axes):
     _psych(df, PsycStim_axes, 'k', 3, "All")
 
-def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
+def _psych(df, plotter, color, linewidth, legend_name, plot_points=True,
            offset=False, SEM=False, GLM=True, min_slope=None):
   '''Do the actual plotting'''
   #ndxNan = isnan(DataCustom.ChoiceLeft);
@@ -1334,9 +1334,8 @@ def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
                                           #BinIdx[ndxError & ndxMinWT]).mean()
     # Xerr = (((np.unique(BinIdx[ndxError & ndxMinWT])+1)/DVNBin)*2)-1-(
                                                         #EXTRA_BIN*(1/DVNBin))
-    PsycStim_axes.plot(PsycX, PsycY, linestyle='none', marker='o',
-                       markeredgecolor=color, markerfacecolor=color,
-                       markerSize=1.5*linewidth*SCALE_X)
+    plotter.addLine(PsycX, PsycY, marker='o', c=color, markeredgecolor=color,
+                    markersize=1.5*linewidth*SCALE_X, linestyle='None')
 
   if np.sum((~ndxNan) & ndxChoice) > 1:
     x = StimDV[(~ndxNan) & ndxChoice]
@@ -1393,9 +1392,8 @@ def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
                 "" if not plot_points else " ({:,} trials)".format(len(df)))
     else:
       legend_name=None
-    PsycStim_axes.plot(x_sampled, y_points * 100, # Convert y to percentile
-                       color=color, linewidth=linewidth*SCALE_X,
-                       label=legend_name)
+    plotter.addLine(x_sampled, y_points*100, color=color,
+                    linewidth=linewidth*SCALE_X, label=legend_name)
 
     # print("label: {} - len data: {}".format(legend_name, len(y)))
     if SEM:
@@ -1403,8 +1401,8 @@ def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
       #else (-y.sem(), y.sem())
       y_sem_lower = (int_low * 100) if GLM else y_points - (y.sem() * 100)
       y_sem_upper = (int_upper * 100) if GLM else y_points +  (y.sem() * 100)
-      PsycStim_axes.fill_between(x_sampled, y_sem_upper, y_sem_lower, color=color,
-                                 alpha=0.2)
+      plotter.fillBetween(x_sampled, y_sem_upper, y_sem_lower, color=color,
+                            alpha=0.2)
     if GLM:
       #print("Intercept:", intercept, "- Slope:", slope)
       return intercept, slope
