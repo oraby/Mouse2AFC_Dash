@@ -1305,109 +1305,109 @@ def psychAll(df, PsycStim_axes):
 
 def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
            offset=False, SEM=False, GLM=True, min_slope=None):
-    '''Do the actual plotting'''
-    #ndxNan = isnan(DataCustom.ChoiceLeft);
-    ndxNan = df.ChoiceLeft.isnull()
-    ndxChoice = df.ForcedLEDTrial == 0
-    StimDV = df.DV
-    if plot_points:
-      StimBin = 10
-      EXTRA_BIN=2
-      BinIdx = pd.cut(StimDV,np.linspace(StimDV.min(), StimDV.max(),
-                      StimBin+EXTRA_BIN), labels=False, include_lowest=True)
-      # Choice trials
-      PsycY = df.ChoiceLeft[(~ndxNan) & ndxChoice].groupby(
-                                             BinIdx[~ndxNan & ndxChoice]).mean()
-      PsycY *= 100 # Convert to percentile
-      PsycX = (((np.unique(BinIdx[(~ndxNan) & ndxChoice])+1)/StimBin)*2)-1-(
-                                                          EXTRA_BIN*(1/StimBin))
-      if offset: # Shift points a little bit to the right/light so that their center
-                 # would overlap with the histogram bar's center, that's all
-        lt_zero = PsycX[PsycX<0]
-        gt_zero = PsycX[PsycX>0]
-        lt_zero += 0.5/(StimBin/2)
-        gt_zero -= 0.5/(StimBin/2)
-        PsycX = np.concatenate([lt_zero,gt_zero])
+  '''Do the actual plotting'''
+  #ndxNan = isnan(DataCustom.ChoiceLeft);
+  ndxNan = df.ChoiceLeft.isnull()
+  ndxChoice = df.ForcedLEDTrial == 0
+  StimDV = df.DV
+  if plot_points:
+    StimBin = 10
+    EXTRA_BIN=2
+    BinIdx = pd.cut(StimDV,np.linspace(StimDV.min(), StimDV.max(),
+                    StimBin+EXTRA_BIN), labels=False, include_lowest=True)
+    # Choice trials
+    PsycY = df.ChoiceLeft[(~ndxNan) & ndxChoice].groupby(
+                                           BinIdx[~ndxNan & ndxChoice]).mean()
+    PsycY *= 100 # Convert to percentile
+    PsycX = (((np.unique(BinIdx[(~ndxNan) & ndxChoice])+1)/StimBin)*2)-1-(
+                                                        EXTRA_BIN*(1/StimBin))
+    if offset: # Shift points a little bit to the right/light so that their center
+               # would overlap with the histogram bar's center, that's all
+      lt_zero = PsycX[PsycX<0]
+      gt_zero = PsycX[PsycX>0]
+      lt_zero += 0.5/(StimBin/2)
+      gt_zero -= 0.5/(StimBin/2)
+      PsycX = np.concatenate([lt_zero,gt_zero])
 
-      # WTerr = df.FeedbackTime[ndxError & ndxMinWT].groupby(
-                                            #BinIdx[ndxError & ndxMinWT]).mean()
-      # Xerr = (((np.unique(BinIdx[ndxError & ndxMinWT])+1)/DVNBin)*2)-1-(
-                                                          #EXTRA_BIN*(1/DVNBin))
-      PsycStim_axes.plot(PsycX, PsycY, linestyle='none', marker='o',
-                         markeredgecolor=color, markerfacecolor=color,
-                         markerSize=1.5*linewidth*SCALE_X)
+    # WTerr = df.FeedbackTime[ndxError & ndxMinWT].groupby(
+                                          #BinIdx[ndxError & ndxMinWT]).mean()
+    # Xerr = (((np.unique(BinIdx[ndxError & ndxMinWT])+1)/DVNBin)*2)-1-(
+                                                        #EXTRA_BIN*(1/DVNBin))
+    PsycStim_axes.plot(PsycX, PsycY, linestyle='none', marker='o',
+                       markeredgecolor=color, markerfacecolor=color,
+                       markerSize=1.5*linewidth*SCALE_X)
 
-    if np.sum((~ndxNan) & ndxChoice) > 1:
-        x = StimDV[(~ndxNan) & ndxChoice]
-        y = df.ChoiceLeft[(~ndxNan) & ndxChoice]
+  if np.sum((~ndxNan) & ndxChoice) > 1:
+    x = StimDV[(~ndxNan) & ndxChoice]
+    y = df.ChoiceLeft[(~ndxNan) & ndxChoice]
 
-        x_sampled = np.linspace(StimDV.min(),StimDV.max(),50)
-        if GLM:
-          import statsmodels.formula.api as smf
-          import statsmodels.api as sm
-          import statsmodels.tools.sm_exceptions as sm_exceptions
+    x_sampled = np.linspace(StimDV.min(),StimDV.max(),50)
+    if GLM:
+      import statsmodels.formula.api as smf
+      import statsmodels.api as sm
+      import statsmodels.tools.sm_exceptions as sm_exceptions
 
-          glm_df = pd.DataFrame({'DV':x, 'ChoiceLeft':y})
-          mod1 = smf.glm('ChoiceLeft~DV', data=glm_df,
-                         family=sm.families.Binomial(sm.families.links.logit()))
-          try:
-            glm_res = mod1.fit()
-          except sm_exceptions.PerfectSeparationError:
-            print("skipping GLM fit for for session(s):", df.Date.unique())
-            print("PsycX len: ", len(x), len(y))
-            return None, None
-          #print(glm_res.summary())
-          intercept, slope = glm_res.params
-          if min_slope != None and slope < min_slope:
-            return intercept, slope
-          #print("Intercept:", intercept, "- Slope:", slope)
-          from scipy.special import logit
-          y_points = glm_res.predict(pd.DataFrame({'DV':x_sampled}))
-          conf_df = glm_res.conf_int()
-          int_low, int_upper = conf_df.iloc[0,0], conf_df.iloc[0,1]
-          #print("conf df :", conf_df)
-          conf_df = glm_res.get_prediction(pd.DataFrame({'DV':x_sampled})).conf_int(alpha=0.05)
-          #print("2. conf df :", conf_df.shape)
-          int_low = conf_df[:,0]
-          int_upper = conf_df[:,1]
-          #print("Using int_low:", int_low)
-          #print("Using int upper:", int_upper)
-        else:
-          def fsigmoid(x, a, b):
-              return 1.0 / (1.0 + np.exp(-a*(x-b)))
-          #y_ind = fsigmoid(np.linspace(-1,1,len(PsycX)), 2, 0)
-          try:
-            popt, pcov = curve_fit(fsigmoid, x, y, maxfev=1000)# , method='dogbox',
-                                   # bounds=([0, 0.],[100, 1.]))
-          except RuntimeError:
-            print("skipping sigmoidal fit for for session(s):", df.Date.unique())
-            print("PsycX len: ", len(x), len(y))
-            return None, None
-          else:
-            y_points = fsigmoid(x_sampled, *popt)
+      glm_df = pd.DataFrame({'DV':x, 'ChoiceLeft':y})
+      mod1 = smf.glm('ChoiceLeft~DV', data=glm_df,
+                     family=sm.families.Binomial(sm.families.links.logit()))
+      try:
+        glm_res = mod1.fit()
+      except sm_exceptions.PerfectSeparationError:
+        print("skipping GLM fit for for session(s):", df.Date.unique())
+        print("PsycX len: ", len(x), len(y))
+        return None, None
+      #print(glm_res.summary())
+      intercept, slope = glm_res.params
+      if min_slope != None and slope < min_slope:
+        return intercept, slope
+      #print("Intercept:", intercept, "- Slope:", slope)
+      from scipy.special import logit
+      y_points = glm_res.predict(pd.DataFrame({'DV':x_sampled}))
+      conf_df = glm_res.conf_int()
+      int_low, int_upper = conf_df.iloc[0,0], conf_df.iloc[0,1]
+      #print("conf df :", conf_df)
+      conf_df = glm_res.get_prediction(pd.DataFrame({'DV':x_sampled})).conf_int(alpha=0.05)
+      #print("2. conf df :", conf_df.shape)
+      int_low = conf_df[:,0]
+      int_upper = conf_df[:,1]
+      #print("Using int_low:", int_low)
+      #print("Using int upper:", int_upper)
+    else:
+      def fsigmoid(x, a, b):
+        return 1.0 / (1.0 + np.exp(-a*(x-b)))
+      #y_ind = fsigmoid(np.linspace(-1,1,len(PsycX)), 2, 0)
+      try:
+        popt, pcov = curve_fit(fsigmoid, x, y, maxfev=1000)# , method='dogbox',
+                               # bounds=([0, 0.],[100, 1.]))
+      except RuntimeError:
+        print("skipping sigmoidal fit for for session(s):", df.Date.unique())
+        print("PsycX len: ", len(x), len(y))
+        return None, None
+      else:
+        y_points = fsigmoid(x_sampled, *popt)
 
-        #print("Sigmoid: ", fsigmoid(PsycX, *popt))
-        if len(legend_name):
-          legend_name="{}{}".format(legend_name,
-                    "" if not plot_points else " ({:,} trials)".format(len(df)))
-        else:
-          legend_name=None
-        PsycStim_axes.plot(x_sampled, y_points * 100, # Convert y to percentile
-                           color=color, linewidth=linewidth*SCALE_X,
-                           label=legend_name)
+    #print("Sigmoid: ", fsigmoid(PsycX, *popt))
+    if len(legend_name):
+      legend_name="{}{}".format(legend_name,
+                "" if not plot_points else " ({:,} trials)".format(len(df)))
+    else:
+      legend_name=None
+    PsycStim_axes.plot(x_sampled, y_points * 100, # Convert y to percentile
+                       color=color, linewidth=linewidth*SCALE_X,
+                       label=legend_name)
 
-        # print("label: {} - len data: {}".format(legend_name, len(y)))
-        if SEM:
-          #sem_lower, sem_upper = (int_low, int_upper) if GLM else (-y.sem(), y.sem())
-          y_sem_lower = (int_low * 100) if GLM else y_points - (y.sem() * 100)
-          y_sem_upper = (int_upper * 100) if GLM else y_points +  (y.sem() * 100)
-          PsycStim_axes.fill_between(x_sampled, y_sem_upper, y_sem_lower, color=color,
-                                     alpha=0.2)
-        if GLM:
-          #print("Intercept:", intercept, "- Slope:", slope)
-          return intercept, slope
-        else:
-          return None, None
+    # print("label: {} - len data: {}".format(legend_name, len(y)))
+    if SEM:
+      #sem_lower, sem_upper = (int_low, int_upper) if GLM else (-y.sem(), y.sem())
+      y_sem_lower = (int_low * 100) if GLM else y_points - (y.sem() * 100)
+      y_sem_upper = (int_upper * 100) if GLM else y_points +  (y.sem() * 100)
+      PsycStim_axes.fill_between(x_sampled, y_sem_upper, y_sem_lower, color=color,
+                                 alpha=0.2)
+    if GLM:
+      #print("Intercept:", intercept, "- Slope:", slope)
+      return intercept, slope
+    else:
+      return None, None
 
 
 #chosen_days = RDK_days if analysis_for == ExpType.RDK else lightintensity_days
