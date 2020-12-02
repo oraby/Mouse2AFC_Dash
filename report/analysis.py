@@ -820,10 +820,11 @@ MIN_NUM_SESSION_TRIALS=50
 SINGLE_SESSION_BIN_SIZE=20
 
 def performanceOverTime(df, head_fixation_date=None, single_session=None,
-                        draw_plots=list(PerfPlots), axes=None, axes_legend=True,
-                        reverse_alphas=False):
+                        draw_plots=list(PerfPlots), plotter=None,
+                        axes_legend=True, reverse_alphas=False):
   animal_name = df.Name.unique()
-  assert len(animal_name) == 1 # Assure that we only have one mouse
+   # Assure that we only have one mouse
+  assert len(animal_name) == 1, 'Multiple mice selected: {}'.format(animal_name)
   if "NameRemapping" in globals():
     animal_name = NameRemapping[animal_name[0]]
   else:
@@ -835,14 +836,11 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
   title += animal_name
   if single_session:
     title += df.Date.unique()[0].strftime(" - %Y-%m-%d")
-  if not axes:
-    axes = plt.axes()
-  axes.set_xlabel(xlabel="Trial Num" if single_session else "Session Num")
-  axes.set_ylim(0, 105)
-  axes.yaxis.set_major_formatter(
-                         FuncFormatter(lambda y, _: '{}%'.format(int(y))))
-  axes.set_ylabel("Rate (%)")
-  axes.set_title(title)
+  plotter.setXLabel(x_label="Trial Num" if single_session else "Session Num")
+  plotter.setYLim(0, 105)
+  plotter.setYTickSuffix('%')
+  plotter.setYLabel("Rate (%)")
+  plotter.setGraphTitle(title)
 
   df = df.sort_values(["Date","SessionNum","TrialNumber"])
   if single_session:
@@ -961,12 +959,12 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
 
   x_data=np.array(x_data,dtype=np.int)
   #TODO: Do session all performance
-  axes.set_xlim(x_data[0],x_data[-1])
+  plotter.setXLim(x_data[0],x_data[-1])
   plots=[PerfPlots.Performance, PerfPlots.EarlyWD, PerfPlots.Bias] + \
         [PerfPlots.Difficulties]*MAX_COUNT_DIFFICULTY
   from colour import Color as ColorLib
   green=ColorLib("green")
-  color=['k','b','c'] + \
+  color=['black','blue','cyan'] + \
         list(map(lambda c: c.hex,
              green.range_to(ColorLib("orange"),MAX_COUNT_DIFFICULTY)))
   label=["Performance Rate","Early-Withdrawal Rate","Left Bias Rate"] + \
@@ -980,7 +978,8 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
     if plots[i] not in draw_plots or np.nansum(metric) == 0:
       continue
     #print("Label:", label[i], "x_data:", len(x_data), "- metric:", len(metric))
-    axes.plot(x_data,metric,color=color[i],label=label[i],alpha=alpha[i])
+    plotter.addLine(x_data, metric, color=color[i], label=label[i],
+                    alpha=alpha[i], linestyle='solid')
 
   if PerfPlots.DifficultiesCount in draw_plots:
     color_map=plt.cm.get_cmap('gist_gray')
@@ -988,17 +987,29 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
       #return 3 if num_difficulties == 3 else 1 - ((num_difficulties-1)/3)
       return 0 if num_difficulties == 1 else num_difficulties/3
 
-    for i in range(len(x_data)):
-      axes.scatter(x_data[i], performance[i]*100,
-                   color=color_map(colorMapIdx(num_difficulties[i])),
-                   edgecolors='k', marker='o',zorder=10,
-                   s=max(20*SCALE_X, min(50*SCALE_X, SCALE_X*7500/num_sessions)))
+    # TODO: find good scale for both
+    s=max(20*SCALE_X, min(50*SCALE_X, SCALE_X*7500/num_sessions))
+    if Plotter._IS_MPL is False:
+      s=s/5
+
+    num_difficulties = np.array(num_difficulties)
+    ind_diff = [np.where(num_difficulties==(i+1)) for i in range(MAX_COUNT_DIFFICULTY)]
+    for i in range(MAX_COUNT_DIFFICULTY):
+      if i+1 not in num_difficulties:
+        continue
+      label='{} difficult{}'.format(i+1, 'y' if i+1 == 1 else 'ies')
+      plotter.addScatter(x_data[ind_diff[i]],
+                         np.array(performance)[ind_diff[i]]*100,
+                         color=color_map(colorMapIdx(i+1)),
+                         edgecolors='black', marker='o',zorder=10,
+                         s=s, label=label)
 
   if PerfPlots.StimAPO in draw_plots:
     arr_stim_poke_out = np.ones(len(stim_poke_out)) * 100
     arr_stim_poke_out[(np.where(np.array(stim_poke_out) == 0)[0])] = np.nan
-    axes.step(x_data,arr_stim_poke_out,color='g',linestyle='-',
-              label='Stim-After-Poke',alpha=0.5,where="mid")
+    plotter.addStep(x_data, arr_stim_poke_out, color='green',
+                    linestyle='-', label='Stim-After-Poke', alpha=0.5,
+                    where="mid")
 
 
   if any(perf_plot in draw_plots for perf_plot in [PerfPlots.SamplingT,
@@ -1006,14 +1017,16 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
                                                    PerfPlots.ReactionT,
                                                    PerfPlots.MaxFeedbackDelay,
                                                    PerfPlots.CatchWT]):
-    axes2 = axes.twinx()
-    axes2.tick_params(axis='y', labelcolor='k')
-    axes2.set_ylabel('Time (s)', color='k')
-    axes2.set_ylim(0, max(4,max(catch_wt_correct),max(catch_wt_error)))
+    plotter2 = plotter.addYAxis()
+    plotter2.setYTickLabelcolor('black')
+    plotter2.setYLabel('Time (s)')
+    plotter2.setYLim(ymin=0,
+                    ymax=max(4,max(catch_wt_correct),max(catch_wt_error)))
+
     plots = [PerfPlots.SamplingT, PerfPlots.MovementT,
              PerfPlots.ReactionT, PerfPlots.MaxFeedbackDelay,
              PerfPlots.CatchWT, PerfPlots.CatchWT]
-    color=['r','m',"gray","orange",'g','r']
+    color=['red','magenta',"gray","orange",'green','red']
     if not reverse_alphas:
       alpha=[1.0, 0.6, 0.8, 0.5, 1.0, 1.0]
       shaded_alpha=[0.1, 0.15, 0.1, None, None, None]
@@ -1030,53 +1043,34 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
                                      catch_wt_error]):
       if plots[i] not in draw_plots or np.nansum(metric_data) == 0:
         continue
-      axes2.plot(x_data,metric_data,color=color[i],linestyle=linestyle[i],
-                 label=label[i],alpha=alpha[i],markeredgecolor=color[i],
-                 marker=marker[i])
+      plotter2.addLine(x_data, metric_data, color=color[i],
+                       linestyle=linestyle[i], label=label[i],
+                       alpha=alpha[i], markeredgecolor=color[i],
+                       marker=marker[i])
       if stds[i]:
         metric_data=np.array(metric_data)
-        axes2.fill_between(x_data,metric_data-stds[i],metric_data+stds[i],
-                           color=color[i],alpha=shaded_alpha[i])
+        plotter2.fillBetween(x_data, metric_data-stds[i], metric_data+stds[i],
+                            color=color[i], alpha=shaded_alpha[i])
 
-  lines, labels = axes.get_legend_handles_labels()
-  # Add horizontal and vertical now after we got the labels, and add them later
-  # to the legend manually otherwise verticla lines doesn't show up in the
-  # legend correctly.
-  axes.axhline(y=0.5*100, color='gray',linestyle='dashed',zorder=-1)
+  plotter.createHLine(y=0.5*100, color='gray', linestyle='dashed', zorder=-1)
+
   if (PerfPlots.HeadFixDate in draw_plots) and head_fixation_date \
    and head_fixation_session:
-    axes.axvline(x=head_fixation_session,color='gray',linestyle='-',alpha=1,
-                 zorder=-1)
-    lines.append(Line2D([], [], marker='|',linestyle='None',color='gray',
-                 alpha=0.8, markersize=10*SCALE_X))
-    labels.append("$1^{st}$ head-fixed session")
+    plotter.createVLine(x=head_fixation_session, color='gray', linestyle='-',
+                        alpha=1, zorder=-1,
+                        label="$1^{st}$ head-fixed session")
 
   if not axes_legend:
     return
-
-  # Continue getting the rest of the labels
-  lines2, labels2 = axes2.get_legend_handles_labels()
-  lines3=[]  # For difficulties  markers
-  labels3=[] # Also for difficulties markers
-  if PerfPlots.DifficultiesCount in draw_plots:
-    for i in range(1,4):
-      # Don't create entry in legend if difficulty count was not used
-      if i not in num_difficulties:
-        continue
-      lines3.append(Line2D([], [], color=color_map(colorMapIdx(i)), marker='o',
-                    linestyle='None',markersize=7.5*SCALE_X,markeredgecolor='k'))
-      labels3.append('{} difficult{}'.format(i, 'y' if i == 1 else 'ies'))
-
+  plotter.draw()
   fontP = FontProperties()
   fontP.set_size('small')
   #bbox_to_anchor=(1.5, 1.05)
   #bbox_to_anchor=(1*6.0/SAVE_FIG_SIZE[0], -0.15*4.0/SAVE_FIG_SIZE[1])
   bbox_to_anchor=(0.5,-0.18)
-  legend = axes2.legend(lines + lines2 + lines3,labels + labels2 + labels3,
-               loc='upper center',
-               bbox_to_anchor=bbox_to_anchor,ncol=3,fancybox=True,#shadow=True)
-               prop=fontP)
-  return legend
+
+  plotter.legend(loc='upper center', bbox_to_anchor=bbox_to_anchor,
+                 ncol=3, fancybox=True, prop=fontP)
 
 
 def initialTraining(df, animal_name, max_num_sessions):
