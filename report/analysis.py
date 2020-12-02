@@ -1489,23 +1489,23 @@ def psychAnimalSessions(df,ANIMAL,plotter,METHOD):
                  fancybox=True, prop={'size': 'x-small'})
 
 def plotNormTrialDistrib(df,axes,METHOD):
-    ndxNan = df.ChoiceLeft.isnull()
-    ndxChoice = df.ForcedLEDTrial == 0
-    # Tilde inverts: use DV values where ndxNan is False and ndxChoice is True
-    # Meaning: Where ChoiceLeft is not 0, ForcedLEDTrial is 0.
-    difficulties = df.DV[(~ndxNan) & ndxChoice]
-    # bins=array([-1.,-0.8,-0.6,-0.4,-0.2,0.,0.2,0.4,0.6,0.8,1.]).
-    # Values define bin BORDERS (thus 11 values for 10 bins)
-    counts, bins = np.histogram(difficulties,bins=10)
-    counts = counts.astype(np.float)
-    if METHOD == "max":
-      counts /= counts.max()
-    elif METHOD == "sum":
-      counts /= sum(counts)
-    else:
-      raise ("Unknown METHOD " + METHOD)
-    axes.bar(bins[:-1],counts*100,width=0.2,align='edge',zorder=-1,color='pink',
-             edgecolor='k',label="Norm. difficulty distribution")
+  ndxNan = df.ChoiceLeft.isnull()
+  ndxChoice = df.ForcedLEDTrial == 0
+  # Tilde inverts: use DV values where ndxNan is False and ndxChoice is True
+  # Meaning: Where ChoiceLeft is not 0, ForcedLEDTrial is 0.
+  difficulties = df.DV[(~ndxNan) & ndxChoice]
+  # bins=array([-1.,-0.8,-0.6,-0.4,-0.2,0.,0.2,0.4,0.6,0.8,1.]).
+  # Values define bin BORDERS (thus 11 values for 10 bins)
+  counts, bins = np.histogram(difficulties,bins=10)
+  counts = counts.astype(np.float)
+  if METHOD == "max":
+    counts /= counts.max()
+  elif METHOD == "sum":
+    counts /= sum(counts)
+  else:
+    raise ("Unknown METHOD " + METHOD)
+  axes.bar(bins[:-1],counts*100,width=0.2,align='edge',zorder=-1,color='pink',
+           edgecolor='k',label="Norm. difficulty distribution")
 
 
 def filterSession(df,skip_first,skip_last,min_date,min_perf):
