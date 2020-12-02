@@ -1282,7 +1282,7 @@ def interceptSlope(df):
 def psychAxes(animal_name="", axes=None):
   title="Psychometric Stim{}".format(
                                 " " + animal_name if len(animal_name) else "")
-  x_label= "RDK Coherence"  if analysis_for == ExpType.RDK else "Light Intensity"
+  x_label="RDK Coherence" if analysis_for == ExpType.RDK else "Light Intensity"
   if not axes:
     axes = plt.axes()
   #axes.set_ylim(-.05, 1.05)
