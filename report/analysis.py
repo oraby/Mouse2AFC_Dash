@@ -1321,8 +1321,9 @@ def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
     PsycY *= 100 # Convert to percentile
     PsycX = (((np.unique(BinIdx[(~ndxNan) & ndxChoice])+1)/StimBin)*2)-1-(
                                                         EXTRA_BIN*(1/StimBin))
-    if offset: # Shift points a little bit to the right/light so that their center
-               # would overlap with the histogram bar's center, that's all
+    if offset: # Shift points a little bit to the right/light so that their
+               # center would overlap with the histogram bar's center, that's
+               # all
       lt_zero = PsycX[PsycX<0]
       gt_zero = PsycX[PsycX>0]
       lt_zero += 0.5/(StimBin/2)
@@ -1398,7 +1399,8 @@ def _psych(df, PsycStim_axes, color, linewidth, legend_name, plot_points=True,
 
     # print("label: {} - len data: {}".format(legend_name, len(y)))
     if SEM:
-      #sem_lower, sem_upper = (int_low, int_upper) if GLM else (-y.sem(), y.sem())
+      #sem_lower, sem_upper = (int_low, int_upper) if GLM \
+      #else (-y.sem(), y.sem())
       y_sem_lower = (int_low * 100) if GLM else y_points - (y.sem() * 100)
       y_sem_upper = (int_upper * 100) if GLM else y_points +  (y.sem() * 100)
       PsycStim_axes.fill_between(x_sampled, y_sem_upper, y_sem_lower, color=color,
