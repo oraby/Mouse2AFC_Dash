@@ -830,7 +830,8 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
     animal_name = animal_name[0]
 
   #print("Animal name:", animal_name)
-  title = "Session performance " if single_session else 'Performance over time '
+  title = "Session performance " if single_session else \
+   'Performance over time '
   title += animal_name
   if single_session:
     title += df.Date.unique()[0].strftime(" - %Y-%m-%d")
@@ -845,7 +846,8 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
 
   df = df.sort_values(["Date","SessionNum","TrialNumber"])
   if single_session:
-    sessions = df.groupby(df.index//SINGLE_SESSION_BIN_SIZE) # Group every 10 trials
+    # Group every 10 trials
+    sessions = df.groupby(df.index//SINGLE_SESSION_BIN_SIZE)
   else:
     sessions = df.groupby([df.Date,df.SessionNum])
   def calcLeftBias(block):
@@ -898,7 +900,8 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
       if num_trials < MIN_NUM_SESSION_TRIALS:
         continue
       block_performance = block.SessionPerformance.unique()[0]/100.0
-    #print("Session num:", date_sessionnum, "- performance:", block_performance)
+    #print("Session num:", date_sessionnum, "- performance:",
+    #      block_performance)
     performance.append(block_performance)
     x_data.append(block.TrialNumber.max() if single_session
                   else len(performance))
