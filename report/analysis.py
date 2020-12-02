@@ -917,14 +917,14 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
     catch_error_trials = block[(block.GUI_CatchError == True) &
                                (block.ChoiceCorrect == 0)]
     if len(catch_error_trials):
-        catch_wt_error.append(catch_error_trials.FeedbackTime.mean())
+      catch_wt_error.append(catch_error_trials.FeedbackTime.mean())
     else:
-        catch_wt_error.append(np.NaN)
+      catch_wt_error.append(np.NaN)
     catch_correct = block[(block.CatchTrial == 1) & (block.ChoiceCorrect == 1)]
     if len(catch_correct):
-        catch_wt_correct.append(catch_correct.FeedbackTime.mean())
+      catch_wt_correct.append(catch_correct.FeedbackTime.mean())
     else:
-        catch_wt_correct.append(np.NaN)
+      catch_wt_correct.append(np.NaN)
 
     used_difficulties = []
     num_points = 0
@@ -1012,11 +1012,11 @@ def performanceOverTime(df, head_fixation_date=None, single_session=None,
              PerfPlots.CatchWT, PerfPlots.CatchWT]
     color=['r','m',"gray","orange",'g','r']
     if not reverse_alphas:
-        alpha=[1.0, 0.6, 0.8, 0.5, 1.0, 1.0]
-        shaded_alpha=[0.1, 0.15, 0.1, None, None, None]
+      alpha=[1.0, 0.6, 0.8, 0.5, 1.0, 1.0]
+      shaded_alpha=[0.1, 0.15, 0.1, None, None, None]
     else:
-        alpha=[0.2, 0.8, 0.8, 0.5, 1.0, 1.0]
-        shaded_alpha=[0.04, 0.1, 0.1, None, None, None]
+      alpha=[0.2, 0.8, 0.8, 0.5, 1.0, 1.0]
+      shaded_alpha=[0.04, 0.1, 0.1, None, None, None]
     linestyle=['-', '-','-','-',"None","None"]
     marker=[None,None,None,None,'+','+']
     label=["Sampling Time (s)", "Movement Time (s)", "Reaction Time (s)",
